@@ -1,8 +1,9 @@
 import torch
+import numpy as np
 
 
 class Attention(torch.nn.Module):
-    def __init__(self, size, decoder=False):
+    def __init__(self, size, internal_size=None, decoder=False):
         """
         Alright, let's create an attention layer.
         This layer will take in the query and the key-value pairs
@@ -10,12 +11,17 @@ class Attention(torch.nn.Module):
 
         For simplicity, we will have 1 head in this implementation.
         """
+        super().__init__()
+        if internal_size is None:
+            internal_size = size
+        # self.internal_size = internal_size
+        # self.size = size
 
         # First up, we need to create the queries, keys, and values from
         # the input. We'll use a linear layer to do this.
-        self.query = torch.nn.Linear(size, size)
-        self.key = torch.nn.Linear(size, size)
-        self.value = torch.nn.Linear(size, size)
+        self.query = torch.nn.Linear(size, internal_size)
+        self.key = torch.nn.Linear(size, internal_size)
+        self.value = torch.nn.Linear(size, internal_size)
 
         self.decoder = decoder
 
@@ -25,9 +31,9 @@ class Attention(torch.nn.Module):
         and values.
 
         input: (batch_size, seq_len, size)
-        query: (batch_size, seq_len, size)
-        key: (batch_size, seq_len, size)
-        value: (batch_size, seq_len, size)
+        query: (batch_size, seq_len, internal_size)
+        key: (batch_size, seq_len, internal_size)
+        value: (batch_size, seq_len, internal_size)
         """
         # First, we'll pass the input through the linear layers.
         query = self.query(input)
@@ -45,25 +51,36 @@ class Attention(torch.nn.Module):
         key: (batch_size, seq_len, size)
         attention_weights: (batch_size, seq_len, seq_len)
         """
+        batch_size, seq_len, size = query.shape
+
         # First, we need to get the dot product of the query and the key.
         # This will give us the unnormalized attention weights.
         attention_weights = torch.bmm(query, key.transpose(1, 2))
 
+        # print("Attention weights inside model")
+        # print(attention_weights)
+
         # To normalize the attention weights, we need to divide by the
         # square root of the size.
-        attention_weights = attention_weights / (query.shape[-1] ** 0.5)
+        attention_weights = attention_weights / (seq_len ** 0.5)
 
-        # Now, we need to normalize the attention weights.
-        attention_weights = torch.nn.functional.softmax(
-            attention_weights, dim=2)
+        # print("Normalized attention weights inside model")
+        # print(self.size, self.internal_size)
+        # print(attention_weights)
 
         if self.decoder:
             # We need to mask the attention weights for the decoder.
             # This is because the decoder should only be able to attend to
             # the previous positions.
-            batch_size, seq_len, _ = attention_weights.shape
             indices = torch.triu_indices(seq_len, seq_len, offset=1)
             attention_weights[:, indices[0], indices[1]] = float('-inf')
+
+        # Now, we need to normalize the attention weights.
+        attention_weights = torch.nn.functional.softmax(
+            attention_weights, dim=2)
+
+        # print("Softmax attention weights inside model")
+        # print(attention_weights)
 
         return attention_weights
 
@@ -108,3 +125,9 @@ class Attention(torch.nn.Module):
         # attention: (batch_size, seq_len, size)
 
         return attention
+
+
+if __name__ == "__main__":
+    from tests.test_attention import test_attention
+    assert test_attention()
+    assert test_attention(decoder=True)

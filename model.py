@@ -8,7 +8,6 @@ class Model(torch.nn.Module):
     def __init__(self,
                  embedding_in: Embedding,
                  embedding_out: Embedding,
-                 tokenizer: Tokenizer,
                  size=64,
                  layers=8,
                  size_internal=None,
@@ -17,6 +16,7 @@ class Model(torch.nn.Module):
         """
         Alright, let's create a Transformer layer.
         """
+        super().__init__()
 
         if size_internal is None:
             size_internal = size * 4
@@ -30,7 +30,6 @@ class Model(torch.nn.Module):
 
         self.embedding_in = embedding_in
         self.embedding_out = embedding_out
-        self.tokenizer = tokenizer
 
     def forward(self, input):
         """
@@ -54,4 +53,6 @@ class Model(torch.nn.Module):
 
             return output
         else:
-            raise NotImplementedError
+            # Auto-regressive decoding.
+            # We are guaranteed that
+            embedding = self.embedding_in(input)

@@ -7,6 +7,7 @@ class Transformer(torch.nn.Module):
         """
         Alright, let's create a Transformer layer.
         """
+        super().__init__()
 
         if size_internal is None:
             size_internal = size * 4
