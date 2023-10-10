@@ -20,7 +20,7 @@ map<string, int> reverse_initial_vocab;
 vector<string> vocab;
 
 #define MAX_TOKEN 10 // maximum token length
-#define LOW_MERGE_CUTOFF 5 // minimum frequency to merge
+#define LOW_MERGE_CUTOFF 1000 // minimum frequency to merge
 #define ll long long
 
 pair<vector<string>, map<string,int>> generate_initial_vocab(){
