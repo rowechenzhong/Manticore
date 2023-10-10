@@ -1,4 +1,4 @@
-from tokenizer import BPE
+from tokenizers.naive_BPE_tokenizer.tokenizer import Tokenizer
 
 # # Atoms test
 

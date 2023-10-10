@@ -6,6 +6,7 @@
         "iosfwd": "cpp",
         "algorithm": "cpp",
         "fstream": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "tuple": "cpp"
     }
 }

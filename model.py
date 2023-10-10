@@ -1,7 +1,7 @@
 import torch
 from transformer import Transformer
 from embedding import Embedding
-from tokenizer import Tokenizer
+from tokenizers.naive_BPE_tokenizer.tokenizer import Tokenizer
 
 
 class Model(torch.nn.Module):
