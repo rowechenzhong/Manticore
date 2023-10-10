@@ -8,6 +8,8 @@
         "fstream": "cpp",
         "sstream": "cpp",
         "tuple": "cpp",
-        "string": "cpp"
+        "string": "cpp",
+        "map": "cpp",
+        "new": "cpp"
     }
 }

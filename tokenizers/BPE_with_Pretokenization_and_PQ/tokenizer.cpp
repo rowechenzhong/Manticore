@@ -50,16 +50,19 @@ map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_init
      * Then, each letter in each word should be mapped to its byte (the base vocabulary is 256).
     */
     map<vector<int>, int> frequencies; // maps each distinct word to its frequency.
-    for (int i = 0; i < corpus.size(); ++i) {
-        if (i % 1000 == 0)
-            cout << "Pre-tokenizing: " << i << " of " << corpus.size() << " frequency size is " << frequencies.size() << "                   \r";
-        int j = i;
-        while (j < corpus.size() && corpus[j] != ' ' && corpus[j] != '\n' && corpus[j] != '\t') {
+    int idx = 0;
+    while(idx < corpus.size()){
+        if (idx % 1000 == 0)
+            cout << "Pre-tokenizing: " << idx << " of " << corpus.size() << " frequency size is " << frequencies.size() << "                   \r";
+        int j = idx;
+
+        while (j < corpus.size() && corpus.at(j) != ' ' && corpus.at(j) != '\n' && corpus.at(j) != '\t') {
             j += 1;
         }
-        string word = corpus.substr(i, j - i);
+        
         vector<int> bytes;
-        for (char c : word) {
+        for (int _ = idx; _ < j; _++) {
+            char c = corpus.at(_);
             if (reverse_initial_vocab.find(string(1, c)) == reverse_initial_vocab.end()) {
                 bytes.push_back(reverse_initial_vocab["<unk>"]);
             } else {
@@ -68,62 +71,47 @@ map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_init
         }
 
         frequencies[bytes] += 1;
-        i = j;
+        
+        idx = j + 1;
     }
     cout << endl;
     return frequencies;
 }
 
 void train(map<vector<int>, int>& corpus, unsigned int vocab_size) {
-    vector<vector<int>> frequencies(vocab_size, vector<int>(vocab_size, 0));
-    priority_queue<pair<int, pair<pair<int, int>, int>>> pq; // contains: (frequency, ((i,j), last update time))
-    
-    // vector of last update time
-    vector<int> last_update_time(vocab_size, vocab.size());
 
-    for (auto& [word, freq] : corpus) {
+    
+
+    while (vocab.size() < vocab_size) {
+
+        vector<vector<int>> frequencies(vocab_size, vector<int>(vocab_size, 0));
+
+
+        for (auto& [word, freq] : corpus) {
         for (int i = 0; i + 1 < word.size(); ++i) {
             frequencies[word[i]][word[i + 1]] += freq;
         }
     }
 
-    for(int i = 0; i < vocab_size; ++i){
-        for(int j = 0; j < vocab_size; ++j){
-            if(frequencies[i][j] >= LOW_MERGE_CUTOFF && vocab[i].size() + vocab[j].size() <= MAX_TOKEN){
-                pq.push(make_pair(frequencies[i][j], make_pair(make_pair(i, j), vocab.size())));
-            }
-        }
-    }
-
-    while (vocab.size() < vocab_size) {
-
         // vocab.push_back(vocab[max_i] + vocab[max_j]);
         int max_i = -1;
         int max_j = -1;
         int max_freq = 0;
-        while(!pq.empty()){
-            pair<int, pair<pair<int, int>, int>> top = pq.top();
-            pq.pop();
-            int freq = top.first;
-            int i = top.second.first.first;
-            int j = top.second.first.second;
-            int last_update = top.second.second;
-            if(last_update_time[i] <= last_update || last_update_time[j] <= last_update){ // Good!!!
-                max_i = i;
-                max_j = j;
-                max_freq = freq;
-                break;
+
+        // Finds the most frequent pair of tokens
+        for(int i = 0; i < vocab_size; ++i) {
+            for(int j = 0; j < vocab_size; ++j) {
+                if(frequencies[i][j] > max_freq && vocab[i].size() + vocab[j].size() <= MAX_TOKEN){
+                    max_freq = frequencies[i][j];
+                    max_i = i;
+                    max_j = j;
+                }
             }
         }
-
-        if(pq.empty()){
-            cout << endl << "No more merges possible. Stopping." << endl;
+        if(max_i == -1 || max_j == -1){
+            cout << "No more merges possible" << endl;
             break;
         }
-        // Updates last_update_time
-        last_update_time[max_i] = vocab.size() + 1;
-        last_update_time[max_j] = vocab.size() + 1;
-
         // Creates new word
         vocab.push_back(vocab[max_i] + vocab[max_j]);
         int new_vocab_index = vocab.size() - 1;
@@ -150,29 +138,13 @@ void train(map<vector<int>, int>& corpus, unsigned int vocab_size) {
         for(int i = 0; i < vocab_size; ++i) {
             frequencies[i][max_i] = 0;
         }
-        for (auto& [word, freq] : corpus) {
-            for (int i = 0; i + 1 < word.size(); ++i) {
-                if (word[i] == max_j || word[i + 1] == max_i || word[i] == new_vocab_index || word[i+1] == new_vocab_index) { // We need to re-calculate these guys.
-                    frequencies[word[i]][word[i + 1]] += freq;
-                }
-            }
-        }
-
-        // Re-calculates pq
-        for(int i = 0; i < vocab_size; ++i) {
-            if(frequencies[i][max_i] > LOW_MERGE_CUTOFF && vocab[i].size() + vocab[max_i].size() <= MAX_TOKEN){
-                pq.push(make_pair(frequencies[i][max_i], make_pair(make_pair(i, max_i), vocab.size())));
-            }
-            if(frequencies[max_j][i] > LOW_MERGE_CUTOFF && vocab[i].size() + vocab[max_j].size() <= MAX_TOKEN){
-                pq.push(make_pair(frequencies[max_j][i], make_pair(make_pair(max_j, i), vocab.size())));
-            }
-            if(frequencies[i][new_vocab_index] > LOW_MERGE_CUTOFF && vocab[i].size() + vocab[new_vocab_index].size() <= MAX_TOKEN){
-                pq.push(make_pair(frequencies[i][new_vocab_index], make_pair(make_pair(i, new_vocab_index), vocab.size())));
-            }
-            if(frequencies[new_vocab_index][i] > LOW_MERGE_CUTOFF && vocab[i].size() + vocab[new_vocab_index].size() <= MAX_TOKEN){
-                pq.push(make_pair(frequencies[new_vocab_index][i], make_pair(make_pair(new_vocab_index, i), vocab.size())));
-            }
-        }
+        // for (auto& [word, freq] : corpus) {
+        //     for (int i = 0; i + 1 < word.size(); ++i) {
+        //         if (word[i] == max_j || word[i + 1] == max_i || word[i] == new_vocab_index || word[i+1] == new_vocab_index) { // We need to re-calculate these guys.
+        //             frequencies[word[i]][word[i + 1]] += freq;
+        //         }
+        //     }
+        // }
         
         ll corpus_size = 0;
         for (auto& [word, freq] : corpus) {
@@ -269,6 +241,21 @@ int main() {
     tie(initial_vocab, reverse_initial_vocab) = generate_initial_vocab();
     vocab = initial_vocab;
     map<vector<int>, int> frequencies = pre_tokenize(input_corpus, reverse_initial_vocab);
+
+    // print number of distinct words
+    cout << "Number of distinct words: " << frequencies.size() << endl;
+
+    // compute frequency of frequencies
+    map<int, int> freq_of_freq;
+    for (auto& [token, freq] : frequencies) {
+        freq_of_freq[freq] += 1;
+    }
+
+    // print frequency of frequencies
+    cout << "Frequency of frequencies: " << endl;
+    for (auto& [freq, freq_freq] : freq_of_freq) {
+        cout << freq << ": " << freq_freq << endl;
+    }
 
     // // Debugging: print frequencies
     // cout << "Frequencies: " << endl;
