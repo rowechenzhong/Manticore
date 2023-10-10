@@ -20,7 +20,7 @@ map<string, int> reverse_initial_vocab;
 vector<string> vocab;
 
 #define MAX_TOKEN 10 // maximum token length
-#define LOW_MERGE_CUTOFF 500 // minimum frequency to merge
+#define LOW_MERGE_CUTOFF 5 // minimum frequency to merge
 #define ll long long
 
 pair<vector<string>, map<string,int>> generate_initial_vocab(){
@@ -38,6 +38,8 @@ pair<vector<string>, map<string,int>> generate_initial_vocab(){
         reverse_initial_vocab[s] = i + 1;
     }
     // set initial_vocab_lengths to all 1's
+    // initial_vocab_lengths = vector<int>(initial_vocab.size(), 1);
+    // return make_tuple(initial_vocab, reverse_initial_vocab, initial_vocab_lengths);
     return make_pair(initial_vocab, reverse_initial_vocab);
 }
 
@@ -50,19 +52,16 @@ map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_init
      * Then, each letter in each word should be mapped to its byte (the base vocabulary is 256).
     */
     map<vector<int>, int> frequencies; // maps each distinct word to its frequency.
-    int idx = 0;
-    while(idx < corpus.size()){
-        if (idx % 1000 == 0)
+    for (int i = 0; i < corpus.size(); ++i) {
+        if (i % 1000 == 0)
             cout << "Pre-tokenizing: " << i << " of " << corpus.size() << " frequency size is " << frequencies.size() << "                   \r";
-        int j = idx;
-
+        int j = i;
         while (j < corpus.size() && corpus[j] != ' ' && corpus[j] != '\n' && corpus[j] != '\t') {
             j += 1;
         }
-        
+        string word = corpus.substr(i, j - i);
         vector<int> bytes;
-        for (int _ = idx; _ < j; _++) {
-            char c = corpus.at(_);
+        for (char c : word) {
             if (reverse_initial_vocab.find(string(1, c)) == reverse_initial_vocab.end()) {
                 bytes.push_back(reverse_initial_vocab["<unk>"]);
             } else {
@@ -71,8 +70,7 @@ map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_init
         }
 
         frequencies[bytes] += 1;
-        
-        idx = j;
+        i = j;
     }
     cout << endl;
     return frequencies;
@@ -80,13 +78,24 @@ map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_init
 
 void train(map<vector<int>, int>& corpus, unsigned int vocab_size) {
     vector<vector<int>> frequencies(vocab_size, vector<int>(vocab_size, 0));
-    priority_queue<pair<int, pair<pair<int, int>, int>>, vector<pair<int, pair<pair<int, int>, int>>>, less<pair<int, pair<pair<int, int>, int>>>> pq; // contains: (frequency, ((i,j), last update time))
+    
+    
+    // map<int, vector<pair<int, int>>> pq; // maps frequency to all pairs of indices that have that frequency.
+
+    // i don't care about removing... so I'll just use a priorityqueue.
+
+    priority_queue<pair<int, pair<pair<int, int>, int>>> pq; // contains: (frequency, ((i,j), last update time))
     
     // vector of last update time
     vector<int> last_update_time(vocab_size, vocab.size());
 
     for (auto& [word, freq] : corpus) {
         for (int i = 0; i + 1 < word.size(); ++i) {
+            // cout << "word has length " << word.size() << endl << endl;
+            // cout << "i is " << i << " and word[i] is " << word[i] << endl;
+            // cout << "word[i] is " << word[i] << " and word[i+1] is " << word[i+1] << endl;
+            // // print frequencies size 
+            // cout << "frequencies size is " << frequencies.size() << " by " << frequencies[0].size() << endl;
             frequencies[word[i]][word[i + 1]] += freq;
         }
     }
@@ -99,23 +108,57 @@ void train(map<vector<int>, int>& corpus, unsigned int vocab_size) {
         }
     }
 
-    while (vocab.size() < vocab_size) {
+    // int max_i = -1;
+    // int max_j = -1;
+    // int max_freq = 0;
 
+    // for (int i = 0; i < vocab.size(); ++i) {
+    //     for (int j = 0; j < vocab.size(); ++j) {
+    //         if (frequencies[i][j] > max_freq && vocab[i].size() + vocab[j].size() <= MAX_TOKEN) {
+    //             max_freq = frequencies[i][j];
+    //             max_i = i;
+    //             max_j = j;
+    //         }
+    //     }
+    // }
+
+    while (vocab.size() < vocab_size) {
+        ll corpus_size = 0;
+        for (auto& [word, freq] : corpus) {
+            corpus_size += (ll)freq * (ll)word.size();
+        }
+        cout << "Current vocab size=" << vocab.size() << " current corpus size=" << corpus_size << "                        \r";
+
+        // if(pq.empty()){
+        //     cout << "No more merges possible. Stopping." << endl;
+        //     break;
+        // }
+        // int max_i = pq.top().second.first;
+        // int max_j = pq.top().second.second;
+
+
+        // if (max_freq == 0) {
+        //     cout << "No more merges possible. Stopping." << endl;
+        //     break;
+        // }
+
+        // if(pq.empty()){
+        //     cout << endl << "No more merges possible. Stopping.asd" << endl;
+        //     break;
+        // }
+        
         // vocab.push_back(vocab[max_i] + vocab[max_j]);
         int max_i = -1;
         int max_j = -1;
-        int max_freq = 0;
         while(!pq.empty()){
             pair<int, pair<pair<int, int>, int>> top = pq.top();
             pq.pop();
-            int freq = top.first;
             int i = top.second.first.first;
             int j = top.second.first.second;
             int last_update = top.second.second;
             if(last_update_time[i] <= last_update || last_update_time[j] <= last_update){ // Good!!!
                 max_i = i;
                 max_j = j;
-                max_freq = freq;
                 break;
             }
         }
@@ -163,26 +206,38 @@ void train(map<vector<int>, int>& corpus, unsigned int vocab_size) {
         }
 
         // Re-calculates pq
+
+        // int new_max_i = -1;
+        // int new_max_j = -1;
+        // max_freq = 0;
         for(int i = 0; i < vocab_size; ++i) {
             if(frequencies[i][max_i] > LOW_MERGE_CUTOFF && vocab[i].size() + vocab[max_i].size() <= MAX_TOKEN){
+                // max_freq = frequencies[i][max_i];
+                // new_max_i = i;
+                // new_max_j = max_i;
                 pq.push(make_pair(frequencies[i][max_i], make_pair(make_pair(i, max_i), vocab.size())));
             }
             if(frequencies[max_j][i] > LOW_MERGE_CUTOFF && vocab[i].size() + vocab[max_j].size() <= MAX_TOKEN){
+                // max_freq = frequencies[max_j][i];
+                // new_max_i = max_j;
+                // new_max_j = i;
                 pq.push(make_pair(frequencies[max_j][i], make_pair(make_pair(max_j, i), vocab.size())));
             }
             if(frequencies[i][new_vocab_index] > LOW_MERGE_CUTOFF && vocab[i].size() + vocab[new_vocab_index].size() <= MAX_TOKEN){
+                // max_freq = frequencies[i][new_vocab_index];
+                // new_max_i = i;
+                // new_max_j = new_vocab_index;
                 pq.push(make_pair(frequencies[i][new_vocab_index], make_pair(make_pair(i, new_vocab_index), vocab.size())));
             }
             if(frequencies[new_vocab_index][i] > LOW_MERGE_CUTOFF && vocab[i].size() + vocab[new_vocab_index].size() <= MAX_TOKEN){
+                // max_freq = frequencies[new_vocab_index][i];
+                // new_max_i = new_vocab_index;
+                // new_max_j = i;
                 pq.push(make_pair(frequencies[new_vocab_index][i], make_pair(make_pair(new_vocab_index, i), vocab.size())));
             }
         }
-        
-        ll corpus_size = 0;
-        for (auto& [word, freq] : corpus) {
-            corpus_size += (ll)freq * (ll)word.size();
-        }
-        cout << "Current vocab size=" << vocab.size() << " current corpus size=" << corpus_size << " merge rate = " << max_freq << "                   \r";
+        // max_i = new_max_i;
+        // max_j = new_max_j;
     }
     cout << endl;
 }

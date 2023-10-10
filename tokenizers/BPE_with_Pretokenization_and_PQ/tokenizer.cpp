@@ -50,19 +50,16 @@ map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_init
      * Then, each letter in each word should be mapped to its byte (the base vocabulary is 256).
     */
     map<vector<int>, int> frequencies; // maps each distinct word to its frequency.
-    int idx = 0;
-    while(idx < corpus.size()){
-        if (idx % 1000 == 0)
+    for (int i = 0; i < corpus.size(); ++i) {
+        if (i % 1000 == 0)
             cout << "Pre-tokenizing: " << i << " of " << corpus.size() << " frequency size is " << frequencies.size() << "                   \r";
-        int j = idx;
-
+        int j = i;
         while (j < corpus.size() && corpus[j] != ' ' && corpus[j] != '\n' && corpus[j] != '\t') {
             j += 1;
         }
-        
+        string word = corpus.substr(i, j - i);
         vector<int> bytes;
-        for (int _ = idx; _ < j; _++) {
-            char c = corpus.at(_);
+        for (char c : word) {
             if (reverse_initial_vocab.find(string(1, c)) == reverse_initial_vocab.end()) {
                 bytes.push_back(reverse_initial_vocab["<unk>"]);
             } else {
@@ -71,8 +68,7 @@ map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_init
         }
 
         frequencies[bytes] += 1;
-        
-        idx = j;
+        i = j;
     }
     cout << endl;
     return frequencies;
@@ -80,7 +76,7 @@ map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_init
 
 void train(map<vector<int>, int>& corpus, unsigned int vocab_size) {
     vector<vector<int>> frequencies(vocab_size, vector<int>(vocab_size, 0));
-    priority_queue<pair<int, pair<pair<int, int>, int>>, vector<pair<int, pair<pair<int, int>, int>>>, less<pair<int, pair<pair<int, int>, int>>>> pq; // contains: (frequency, ((i,j), last update time))
+    priority_queue<pair<int, pair<pair<int, int>, int>>> pq; // contains: (frequency, ((i,j), last update time))
     
     // vector of last update time
     vector<int> last_update_time(vocab_size, vocab.size());

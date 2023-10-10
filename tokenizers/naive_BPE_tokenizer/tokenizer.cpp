@@ -139,12 +139,26 @@ int main() {
 
     // Example usage:
     // read input_corpus from atoms.txt
-    string input_corpus_file = "mahabharata1.txt";
-    
-    ifstream fin1("communistmanifesto.txt");
+    string input_corpus;
+
+    string WHICH_CORPUS = "mahabharata";
     stringstream buf;
-    buf << fin1.rdbuf();
-    string input_corpus = buf.str();
+
+    
+    if(WHICH_CORPUS == "communistmanifesto"){
+        ifstream fin1("C:\\Users\\rowec\\Documents\\GitHub\\Manticore\\corpus\\communistmanifesto.txt");
+        buf << fin1.rdbuf();
+        fin1.close();
+    }else if(WHICH_CORPUS == "mahabharata"){
+        ifstream fin1("C:\\Users\\rowec\\Documents\\GitHub\\Manticore\\corpus\\mahabharata1.txt");
+        ifstream fin2("C:\\Users\\rowec\\Documents\\GitHub\\Manticore\\corpus\\mahabharata2.txt");
+        ifstream fin3("C:\\Users\\rowec\\Documents\\GitHub\\Manticore\\corpus\\mahabharata3.txt");
+        buf << fin1.rdbuf() << fin2.rdbuf() << fin3.rdbuf();
+        fin1.close();
+        fin2.close();
+        fin3.close();
+    }
+    input_corpus = buf.str();
 
     vector<int> ints_corpus = to_ints(input_corpus, reverse_initial_vocab);
     train(ints_corpus, vocab_size);
@@ -172,6 +186,7 @@ int main() {
 
     cout << endl;
 
-    dump_vocab_to_file("communistmanifesto_size4000_cap10.txt");
+    // dump_vocab_to_file("communistmanifesto_size4000_cap10.txt");
+    dump_vocab_to_file("mahabharata1_size4000_cap10.txt");
     return 0;
 }
