@@ -27,9 +27,15 @@ int GLOBAL_TOKEN_ID;
 map<pair<int, int>, int> MERGE_EVENTS;
 
 struct TrieNode {
-    map<int, pair<int, TrieNode*>> children;
-    TrieNode() {
-        children = map<int, pair<int, TrieNode*>>();
+    unordered_map<int, pair<int, TrieNode*>> children;
+    int mark;
+    TrieNode(int mark = 0) {
+        children = unordered_map<int, pair<int, TrieNode*>>();
+        this->mark = mark;
+    }
+
+    ~TrieNode() {
+        for (auto& c1 : children) delete c1.second.second;
     }
 
     pair<int, int> highest_bytepair_and_pullup() {
@@ -86,7 +92,7 @@ struct TrieNode {
         return this;
     }
 
-    TrieNode* insert_vector(const vector<int>& tokens, int pos, int lim, int wt) {
+    TrieNode* insert_vector(const vector<int>& tokens, int pos, int lim, int wt, int leaf_mark = 0) {
         /**
         * Insert the given indices from a vector from [pos, pos + lim) with weight wt.
         */
@@ -97,6 +103,7 @@ struct TrieNode {
             else temp->children[t].first += wt;
             temp = temp->children[t].second;
         }
+        temp->mark = leaf_mark;
         return this;
     }
 
@@ -164,6 +171,9 @@ map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_init
 }
 
 void trie_train(map<vector<int>, int>& corpus, unsigned int vocab_size) {
+    /**
+    * Optimize BPE tokenization with a false suffix trie.
+    */
     GLOBAL_TOKEN_ID = initial_vocab.size();
     MERGE_EVENTS = map<pair<int, int>, int>();
     TrieNode* trie = new TrieNode();
@@ -175,62 +185,61 @@ void trie_train(map<vector<int>, int>& corpus, unsigned int vocab_size) {
         trie->insert_suffixes(word.first, MAX_TOKEN, word.second);
         ++progress;
     }
-    cout << "Completed trie insertion" << endl;
+    cout << "Completed trie insertion                                                 " << endl;
     while (GLOBAL_TOKEN_ID < vocab_size) {
         pair<int, int> tuple = trie->highest_bytepair_and_pullup();
         if (tuple.first == -1) {
-            cout << "No more merges possible." << endl;
+            cout << "No more merges possible.                                         " << endl;
             return;
         }
         vocab.push_back(vocab[tuple.first] + vocab[tuple.second]);
         cout << "Current vocab size=" << vocab.size() << " created token " << vocab.back() << "                   \r";
     }
+    cout << "Completed tokenization                                                   " << endl;
 }
 
-vector<int> tokenize(string& corpus) {
-    vector<int> tokenized_corpus;
-    size_t ptr = 0;
-
-    sort(vocab.begin(), vocab.end());
-
-    while (ptr < corpus.size()) {
-        if ((ptr & 0xfff) == 0) 
-            cout << "Tokenizing: " << ptr << " of " << corpus.size() << "                   \r";
-        int token = 0;
-        size_t longest = 0;
-        for (size_t i = 0; i < vocab.size(); ++i) {
-            if (corpus.substr(ptr, MAX_TOKEN).compare(0, vocab[i].length(), vocab[i]) == 0) {
-                if (vocab[i].length() > longest) {
-                    longest = vocab[i].length();
-                    token = i;
-                }
-            }
-        }
-
-        if (longest == 0) {
-            ptr += 1;
-        } else {
-            tokenized_corpus.push_back(token);
-            ptr += longest;
-        }
+TrieNode* create_vocab_trie() {
+    /**
+    * For use in tokenization
+    */
+    TrieNode* vocab_trie = new TrieNode();
+    for (int idx = 0; idx < vocab.size(); idx++) {
+        string tk = vocab[idx];
+        vector<int> vectorize;
+        for (int c : tk) vectorize.push_back(c);
+        vocab_trie->insert_vector(vectorize, 0, MAX_TOKEN, 1, idx);
     }
-    cout << endl;
+    return vocab_trie;
+}
 
+vector<int> tokenize(string& corpus, TrieNode* vocab_trie) {
+    vector<int> tokenized_corpus;
+    int ptr;
+    TrieNode* cur;
+    for (ptr = 0, cur = vocab_trie; ptr < corpus.size(); ++ptr) {
+        int chr = corpus[ptr];
+        if (cur->children.find(chr) == cur->children.end()) {
+            tokenized_corpus.push_back(cur->mark);
+            cur = vocab_trie->children[chr].second;
+        } else
+            cur = cur->children[chr].second;
+        if (ptr & 0xfff == 0) cout << "Tokenizing ........ " << ptr << " of " << corpus.size() << "\r";
+    }
+    cout << "Finished tokenizing                             " << endl;
+    if (cur != vocab_trie)
+        tokenized_corpus.push_back(cur->mark);
     return tokenized_corpus;
 }
 
 string detokenize(vector<int>& tokenized_corpus) {
     string corpus = "";
-    for (int token : tokenized_corpus) {
+    for (int token : tokenized_corpus)
         corpus += vocab[token];
-    }
     return corpus;
 }
 
 void cout_dump() {
-    for (auto tk : vocab) {
-        cout << tk << " ";
-    }
+    for (auto tk : vocab) cout << tk << " ";
     cout << endl;
 }
 
@@ -243,60 +252,61 @@ void dump_vocab_to_file(string vocab_file) {
     fout.close();
 }
 
+void dump_tokenization_to_file(string tokenized_file, vector<int> tokens) {
+    ofstream fout(tokenized_file);
+    for (int i : tokens) fout << i << " ";
+    fout << endl;
+    fout.close();
+}
+
 int main() {
+    cout << "HI" << endl;
+    // Maximum allowable number of tokens
     int vocab_size = 4000;
 
-    // Example usage: loading the corpus
-    // ifstream fin1("..\\..\\corpus\\communistmanifesto.txt");
+    // Load the corpus
     string input_corpus;
 
     string WHICH_CORPUS = "mahabharata";
     stringstream buf;
     
-    if(WHICH_CORPUS == "communistmanifesto"){
-        ifstream fin1("C:\\Users\\rowec\\Documents\\GitHub\\Manticore\\corpus\\communistmanifesto.txt");
+    if (WHICH_CORPUS == "communistmanifesto") {
+        ifstream fin1("..\\..\\communistmanifesto.txt");
         buf << fin1.rdbuf();
         fin1.close();
-    }else if(WHICH_CORPUS == "mahabharata"){
-        ifstream fin1("C:\\Users\\rowec\\Documents\\GitHub\\Manticore\\corpus\\mahabharata1.txt");
-        ifstream fin2("C:\\Users\\rowec\\Documents\\GitHub\\Manticore\\corpus\\mahabharata2.txt");
-        ifstream fin3("C:\\Users\\rowec\\Documents\\GitHub\\Manticore\\corpus\\mahabharata3.txt");
+    } else if (WHICH_CORPUS == "mahabharata") {
+        ifstream fin1("..\\..\\corpus\\mahabharata1.txt");
+        ifstream fin2("..\\..\\corpus\\mahabharata2.txt");
+        ifstream fin3("..\\..\\corpus\\mahabharata3.txt");
         buf << fin1.rdbuf() << fin2.rdbuf() << fin3.rdbuf();
         fin1.close();
         fin2.close();
         fin3.close();
     }
     input_corpus = buf.str();
-
-
     
     // print corpus length
     cout << "Corpus length: " << input_corpus.size() << endl;
-
-    // // Debugging: print input corpus
-    // cout << "Input corpus: " << input_corpus << endl;
 
     // Training
     tie(initial_vocab, reverse_initial_vocab) = generate_initial_vocab();
     vocab = initial_vocab;
     map<vector<int>, int> frequencies = pre_tokenize(input_corpus, reverse_initial_vocab);
-
-    // // Debugging: print frequencies
-    // cout << "Frequencies: " << endl;
-    // for (auto& [token, freq] : frequencies) {
-    //     for (int t : token) {
-    //         cout << t << " ";
-    //     }
-    //     cout << ": " << freq << endl;
-    // }
-
-    // print frequencies size 
-    // cout << "Frequencies size: " << frequencies.size() << endl;
     trie_train(frequencies, vocab_size);
-    cout_dump();
+    
+    // Save the tokens
+    if (WHICH_CORPUS == "communistmanifesto")
+        dump_vocab_to_file("communistmanifesto_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt");
+    else if (WHICH_CORPUS == "mahabharata")
+        dump_vocab_to_file("mahabharata_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt");
+
+    // Tokenize text
+    cout << "Beginning tokenize" << endl;
+    vector<int> ints_corpus = tokenize(input_corpus, create_vocab_trie());
+    cout << "Saving tokenization" << endl;
+    dump_tokenization_to_file("mahabharata.tkz", ints_corpus);
 
     // Tests
-    vector<int> ints_corpus = tokenize(input_corpus);
     string output_corpus = detokenize(ints_corpus);
     cout << "Compression ratio:" << (double)ints_corpus.size() / (double)input_corpus.size() << endl;
 
@@ -312,12 +322,6 @@ int main() {
         cout << "Token length " << i << ": " << token_lengths[i] << endl;
     }
 
-    cout << endl;
-
     // dump_vocab_to_file("communistmanifesto_size4000_cap10.txt");
-    if(WHICH_CORPUS == "communistmanifesto")
-        dump_vocab_to_file("communistmanifesto_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt");
-    else if(WHICH_CORPUS == "mahabharata")
-        dump_vocab_to_file("mahabharata_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt");
     return 0;
 }
