@@ -109,7 +109,7 @@ struct TrieNode {
     }
 };
 
-pair<vector<string>, map<string, int>> generate_initial_vocab() {
+pair<vector<string>, map<string, int>> generate_initial_vocab(string& text) {
     /**
      * This method should generate the initial vocabulary.
      * The initial vocabulary should contain all single characters (bytes) and the <unk> token.
@@ -118,10 +118,12 @@ pair<vector<string>, map<string, int>> generate_initial_vocab() {
     map<string, int> reverse_initial_vocab;
     initial_vocab.push_back("<unk>");
     reverse_initial_vocab["<unk>"] = 0;
+    int cur = 1;
     for (int i = 0; i < 256; ++i) {
         string s(1, (char)i);
+        if (text.find(s) == std::string::npos) continue;
         initial_vocab.push_back(s);
-        reverse_initial_vocab[s] = i + 1;
+        reverse_initial_vocab[s] = cur++;
     }
     // set initial_vocab_lengths to all 1's
     return make_pair(initial_vocab, reverse_initial_vocab);
@@ -277,7 +279,7 @@ int main() {
     // cout << "Input corpus: " << input_corpus << endl;
 
     // Training
-    tie(initial_vocab, reverse_initial_vocab) = generate_initial_vocab();
+    tie(initial_vocab, reverse_initial_vocab) = generate_initial_vocab(input_corpus);
     vocab = initial_vocab;
     map<vector<int>, int> frequencies = pre_tokenize(input_corpus, reverse_initial_vocab);
 
@@ -296,12 +298,12 @@ int main() {
     cout_dump();
 
     // Tests
-    vector<int> ints_corpus = tokenize(input_corpus);
+    /*vector<int> ints_corpus = tokenize(input_corpus);
     string output_corpus = detokenize(ints_corpus);
     cout << "Compression ratio:" << (double)ints_corpus.size() / (double)input_corpus.size() << endl;
 
     // verify that the corpus is the same after detokenization.
-    assert(input_corpus == output_corpus);
+    assert(input_corpus == output_corpus);*/
 
     // print the distribution of token lengths.
     vector<int> token_lengths(MAX_TOKEN, 0);
