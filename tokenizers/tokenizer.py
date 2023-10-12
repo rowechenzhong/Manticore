@@ -94,8 +94,9 @@ class Tokenizer:
 
     def load(self, vocab_file, delimiter="<BRUH>", debug=False):
         vocab_list = []
-        with open(vocab_file) as f:
+        with open(vocab_file, "rb") as f:
             all_text = f.read()
+            all_text = all_text.decode("ascii", errors="ignore")
             for token in all_text.split(delimiter):
                 vocab_list.append(token)
                 self.max_token_length = max(self.max_token_length, len(token))
@@ -111,20 +112,20 @@ class Tokenizer:
 
         self.vocab = TrieNode.create_vocab_trie(vocab_list)
 
-    def generate_initial_vocab(self) -> Tuple[List[str], Dict[str, int]]:
-        """
-        Generate the initial vocabulary.
+    # def generate_initial_vocab(self) -> Tuple[List[str], Dict[str, int]]:
+    #     """
+    #     Generate the initial vocabulary.
 
-        Returns:
-            Tuple[List[str], Dict[str, int]]: Initial vocabulary and reverse mapping.
-        """
-        initial_vocab = ["<unk>"]
-        reverse_initial_vocab = {"<unk>": 0}
-        for i in range(256):
-            s = chr(i)
-            initial_vocab.append(s)
-            reverse_initial_vocab[s] = i + 1
-        return initial_vocab, reverse_initial_vocab
+    #     Returns:
+    #         Tuple[List[str], Dict[str, int]]: Initial vocabulary and reverse mapping.
+    #     """
+    #     initial_vocab = ["<unk>"]
+    #     reverse_initial_vocab = {"<unk>": 0}
+    #     for i in range(256):
+    #         s = chr(i)
+    #         initial_vocab.append(s)
+    #         reverse_initial_vocab[s] = i + 1
+    #     return initial_vocab, reverse_initial_vocab
 
     def pre_tokenize(self, corpus: str, reverse_initial_vocab: Dict[str, int]) -> Dict[List[int], int]:
         """
@@ -153,7 +154,7 @@ class Tokenizer:
         print()
         return frequencies
 
-    def tokenize(self, corpus: str, vocab_trie: TrieNode) -> List[int]:
+    def tokenize(self, corpus: str) -> List[int]:
         """
         Tokenize the corpus.
 
@@ -168,7 +169,7 @@ class Tokenizer:
         rowechen_ptr = 0
         isaac_ptr = 0
         isaac_notes = 0
-        cur: TrieNode = vocab_trie
+        cur: TrieNode = self.vocab
 
         while True:
             if rowechen_ptr >= len(corpus):
@@ -181,7 +182,7 @@ class Tokenizer:
                 if rowechen_ptr >= len(corpus):
                     break
                 chr = ord(corpus[rowechen_ptr])
-                cur = vocab_trie.children[chr][1]
+                cur = self.vocab.children[chr][1]
             else:
                 cur = cur.children[chr][1]
 
