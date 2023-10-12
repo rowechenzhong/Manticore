@@ -1,4 +1,5 @@
 from typing import List
+from tqdm import tqdm
 """
 We want to implement BPE (Byte Pair Encoding) tokenization. This is a
 subword tokenization technique that is used in NLP. The idea is that we
@@ -42,22 +43,24 @@ class Tokenizer:
 
         ptr = 0
         tokenized_corpus = []
-        while ptr < len(corpus):
-            # We need to find the longest token that matches the corpus.
-            # e.g., "cat" -> "ca" + "t"
-            # e.g., "caterpillar" -> "ca" + "t" + "erp" + "ill" + "ar"
-            token = 0
-            longest = 0
-            for i in range(len(self.vocab)):
-                if corpus[ptr:ptr + self.max_token_length + 1].startswith(self.vocab[i]):
-                    if len(self.vocab[i]) > longest:
-                        longest = len(self.vocab[i])
-                        token = i
-            if longest == 0:
-                ptr += 1
-            else:
-                tokenized_corpus.append(token)
-                ptr += longest
+        with tqdm(total=len(corpus)) as pbar:
+            while ptr < len(corpus):
+                # We need to find the longest token that matches the corpus.
+                # e.g., "cat" -> "ca" + "t"
+                # e.g., "caterpillar" -> "ca" + "t" + "erp" + "ill" + "ar"
+                token = 0
+                longest = 0
+                for i in range(len(self.vocab)):
+                    if corpus[ptr:ptr + self.max_token_length + 1].startswith(self.vocab[i]):
+                        if len(self.vocab[i]) > longest:
+                            longest = len(self.vocab[i])
+                            token = i
+                if longest == 0:
+                    ptr += 1
+                else:
+                    tokenized_corpus.append(token)
+                    ptr += longest
+                pbar.update(10)
 
         return tokenized_corpus
 

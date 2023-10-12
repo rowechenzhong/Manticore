@@ -29,7 +29,7 @@ map<pair<int, int>, int> MERGE_EVENTS;
 struct TrieNode {
     unordered_map<int, pair<int, TrieNode*>> children;
     int mark;
-    TrieNode(int mark = 0) {
+    TrieNode(int mark = -1) {
         // children is a map from token to pair<frequency, TrieNode*>
         children = unordered_map<int, pair<int, TrieNode*>>();
         // If this TrieNode is being used as a tokenizer (as opposed to a corpus)
@@ -125,7 +125,7 @@ struct TrieNode {
         return this;
     }
 
-    TrieNode* insert_vector(const vector<int>& tokens, int pos, int lim, int wt, int leaf_mark = 0) {
+    TrieNode* insert_vector(const vector<int>& tokens, int pos, int lim, int wt, int leaf_mark = -1) {
         /**
         * Insert the given indices from a vector from [pos, pos + lim) with weight wt.
         */
@@ -142,7 +142,6 @@ struct TrieNode {
             }
             temp = temp->children[t].second;
         }
-        // 
         temp->mark = leaf_mark;
         return this;
     }
@@ -252,21 +251,43 @@ TrieNode* create_vocab_trie() {
 }
 
 vector<int> tokenize(string& corpus, TrieNode* vocab_trie) {
+    /**
+     * rowechen_ptr goes ahead and searches down the tree.
+     * isaac_ptr is more careful and only increases when he's sure that the next token is in the vocabulary.
+     * rowechen_ptr will end up running into a lot of dead ends, and ask isaac for help.
+    */
     vector<int> tokenized_corpus;
-    int ptr;
-    TrieNode* cur;
-    for (ptr = 0, cur = vocab_trie; ptr < corpus.size(); ++ptr) {
-        int chr = corpus[ptr];
+    int rowechen_ptr = 0;
+    int isaac_ptr = 0;
+    int isaac_notes = 0;
+    TrieNode* cur = vocab_trie;
+    while(true){
+        int chr;
+        if(rowechen_ptr >= corpus.size())
+            chr = -1;
+        else
+            chr = corpus[rowechen_ptr]; // New character!
         if (cur->children.find(chr) == cur->children.end()) {
-            tokenized_corpus.push_back(cur->mark);
+            // Wait a minute, I can't find it in my children!
+            // Ask Isaac for help.
+            tokenized_corpus.push_back(isaac_notes);
+            rowechen_ptr = isaac_ptr + 1;
+            if(rowechen_ptr >= corpus.size()) break; // We're done!
+
+            // Start over from the beginning of the trie.
+            chr = corpus[rowechen_ptr];
             cur = vocab_trie->children[chr].second;
-        } else
+        } else {
             cur = cur->children[chr].second;
-        if (ptr & 0xfff == 0) cout << "Tokenizing ........ " << ptr << " of " << corpus.size() << "\r";
+        }
+        if(cur->mark != -1){
+            isaac_ptr = rowechen_ptr;
+            isaac_notes = cur->mark;
+        }
+        rowechen_ptr++;
+        if (rowechen_ptr & 0xfff == 0) cout << "Tokenizing ........ " << rowechen_ptr << " of " << corpus.size() << "\r";
     }
     cout << "Finished tokenizing                             " << endl;
-    if (cur != vocab_trie)
-        tokenized_corpus.push_back(cur->mark);
     return tokenized_corpus;
 }
 
@@ -299,20 +320,20 @@ void dump_tokenization_to_file(string tokenized_file, vector<int> tokens) {
 }
 
 int main() {
-    cout << "HI" << endl;
     // Maximum allowable number of tokens
-    int vocab_size = 4000;
+    int vocab_size;
 
     // Load the corpus
     string input_corpus;
 
-    string WHICH_CORPUS = "mahabharata";
+    string WHICH_CORPUS = "communistmanifesto";
     stringstream buf;
     
     if (WHICH_CORPUS == "communistmanifesto") {
-        ifstream fin1("..\\..\\communistmanifesto.txt");
+        ifstream fin1("..\\..\\corpus\\communistmanifesto.txt");
         buf << fin1.rdbuf();
         fin1.close();
+        vocab_size = 1000;
     } else if (WHICH_CORPUS == "mahabharata") {
         ifstream fin1("..\\..\\corpus\\mahabharata1.txt");
         ifstream fin2("..\\..\\corpus\\mahabharata2.txt");
@@ -321,6 +342,7 @@ int main() {
         fin1.close();
         fin2.close();
         fin3.close();
+        vocab_size = 4000;
     }
     input_corpus = buf.str();
     
@@ -335,13 +357,15 @@ int main() {
     
     // Save the tokens
     if (WHICH_CORPUS == "communistmanifesto")
-        dump_vocab_to_file("communistmanifesto_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt");
+        dump_vocab_to_file("..//tokenizer_outputs//communistmanifesto_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt");
     else if (WHICH_CORPUS == "mahabharata")
-        dump_vocab_to_file("mahabharata_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt");
+        dump_vocab_to_file("..//tokenizer_outputs//mahabharata_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt");
+
 
     // Tokenize text
     cout << "Beginning tokenize" << endl;
-    vector<int> ints_corpus = tokenize(input_corpus, create_vocab_trie());
+    TrieNode* vocab_trie = create_vocab_trie();
+    vector<int> ints_corpus = tokenize(input_corpus, vocab_trie);
     cout << "Saving tokenization" << endl;
     dump_tokenization_to_file("mahabharata.tkz", ints_corpus);
 
@@ -349,8 +373,24 @@ int main() {
     string output_corpus = detokenize(ints_corpus);
     cout << "Compression ratio:" << (double)ints_corpus.size() / (double)input_corpus.size() << endl;
 
-    // verify that the corpus is the same after detokenization.
-    assert(input_corpus == output_corpus);
+    assert (input_corpus == output_corpus);
+
+    // Debugging tests:
+    if(true){        
+        vector<string> tests;
+        tests.push_back("Hello everyone! This is a test. I hope it works.");
+        tests.push_back("x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}");
+        for(string test : tests){
+            vector<int> ints = tokenize(test, vocab_trie);
+            string output = detokenize(ints);
+            cout << "Input: " << test << endl;
+            cout << "Output: " << output << endl;
+            cout << "Compression ratio: " << (double)ints.size() / (double)test.size() << endl;
+            cout << endl;
+            assert (test == output);
+        }
+    }    
+
 
     // print the distribution of token lengths.
     vector<int> token_lengths(MAX_TOKEN, 0);
