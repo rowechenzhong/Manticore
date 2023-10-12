@@ -30,17 +30,26 @@ struct TrieNode {
     unordered_map<int, pair<int, TrieNode*>> children;
     int mark;
     TrieNode(int mark = 0) {
+        // children is a map from token to pair<frequency, TrieNode*>
         children = unordered_map<int, pair<int, TrieNode*>>();
+        // If this TrieNode is being used as a tokenizer (as opposed to a corpus)
+        // We mark it with an ID corresponding to its token in the vocabulary.
         this->mark = mark;
     }
 
     ~TrieNode() {
+        // Destructor: delete all children.
         for (auto& c1 : children) delete c1.second.second;
     }
 
     pair<int, int> highest_bytepair_and_pullup() {
         /**
         * Compute the highest frequency length 2 path from this node and pullup.
+        * 
+        * (best_frequency, best_pair) = max{
+        *  (c1->children[c2]->frequency, (c1, c2)) for c1, c2 in this->children, c1->children
+        * }
+        * 
         */
         pair<int, int> best_pair;
         int best_frequency = -1;
@@ -48,14 +57,20 @@ struct TrieNode {
             int tk1 = c1.first;
             for (auto& c2 : c1.second.second->children) {
                 int tk2 = c2.first;
-                if (c2.second.first > best_frequency || (c2.second.first == best_frequency && vocab[best_pair.first].size() + vocab[best_pair.second].size() < vocab[tk1].size() + vocab[tk2].size())) {
+                if (c2.second.first > best_frequency ||
+                    (c2.second.first == best_frequency &&
+                    vocab[best_pair.first].size() + vocab[best_pair.second].size() < vocab[tk1].size() + vocab[tk2].size()
+                    )) {
                     best_frequency = c2.second.first;
                     best_pair = {tk1, tk2};
                 }
             }
         }
         if (best_frequency == -1) return {-1, -1};
+        // Push this best_pair to the global merge events ''queue''
         MERGE_EVENTS[best_pair] = GLOBAL_TOKEN_ID++;
+
+        // Execute all pending pullup events.
         detect_and_pullup_children();
         for (auto& c1 : this->children)
             c1.second.second->detect_and_pullup_children();
@@ -65,7 +80,12 @@ struct TrieNode {
     TrieNode* detect_and_pullup_children() {
         /**
         * Detect and execute all pullup events from this node.
+        * 
+        * for(c1, c2 in this->children, c1->children):
+        *   if (c1, c2) in MERGE_EVENTS:
+        *     pull_up(c1, c2, MERGE_EVENTS[(c1, c2)])
         */
+
         vector<pair<pair<int, int>, int>> pull_up_calls;
         for (auto& c1 : this->children) {
             int tk1 = c1.first;
@@ -84,9 +104,22 @@ struct TrieNode {
     TrieNode* pull_up(int tk1, int tk2, int trg) {
         /**
         * Pull up a node if possible.
+        * Before:
+        *        this
+        *         |
+        *        tk1
+        *       /   \
+        *     tk2   etc
+        * After:
+        *       this
+        *      /    \
+        *    trg    tk1
+        *            |
+        *           etc
+        * where trg contains the tree originally rooted at tk2.
         */
         TrieNode* c1 = this->children[tk1].second;
-        if (c1->children.find(tk2) == c1->children.end()) return nullptr;
+        if (c1->children.find(tk2) == c1->children.end()) return nullptr; // This shouldn't happen
         this->children[trg] = c1->children[tk2];
         c1->children.erase(tk2);
         return this;
@@ -99,10 +132,17 @@ struct TrieNode {
         TrieNode* temp = this;
         for (int i = pos; i < min((int)tokens.size(), pos + lim); i++) {
             int t = tokens[i];
-            if (temp->children.find(t) == temp->children.end()) temp->children[t] = {wt, new TrieNode()};
-            else temp->children[t].first += wt;
+            if (temp->children.find(t) == temp->children.end()){
+                // No child with this token exists. Create one.
+                temp->children[t] = {wt, new TrieNode()};
+            }
+            else{
+                // Child with this token exists. Increment its weight.
+                temp->children[t].first += wt;
+            }
             temp = temp->children[t].second;
         }
+        // 
         temp->mark = leaf_mark;
         return this;
     }
@@ -134,7 +174,6 @@ pair<vector<string>, map<string, int>> generate_initial_vocab() {
     return make_pair(initial_vocab, reverse_initial_vocab);
 }
 
-// pair<vector<vector<byte>>, vector<int>>
 map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_initial_vocab) {
     /**
      * This method should preform pre-tokenization.
