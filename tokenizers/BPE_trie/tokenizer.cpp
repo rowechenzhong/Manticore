@@ -11,7 +11,6 @@
 #include <string_view>
 #include <queue>
 
-
 using namespace std;
 
 vector<string> initial_vocab;
@@ -20,7 +19,7 @@ map<string, int> reverse_initial_vocab;
 vector<string> vocab;
 
 #define MAX_TOKEN 10 // maximum token length
-#define LOW_MERGE_CUTOFF 500 // minimum frequency to merge
+#define LOW_MERGE_CUTOFF 0 // minimum frequency to merge
 #define ll long long
 
 int GLOBAL_TOKEN_ID;
@@ -42,89 +41,6 @@ struct TrieNode {
         for (auto& c1 : children) delete c1.second.second;
     }
 
-    pair<int, int> highest_bytepair_and_pullup() {
-        /**
-        * Compute the highest frequency length 2 path from this node and pullup.
-        * 
-        * (best_frequency, best_pair) = max{
-        *  (c1->children[c2]->frequency, (c1, c2)) for c1, c2 in this->children, c1->children
-        * }
-        * 
-        */
-        pair<int, int> best_pair;
-        int best_frequency = -1;
-        for (auto& c1 : this->children) {
-            int tk1 = c1.first;
-            for (auto& c2 : c1.second.second->children) {
-                int tk2 = c2.first;
-                if (c2.second.first > best_frequency ||
-                    (c2.second.first == best_frequency &&
-                    vocab[best_pair.first].size() + vocab[best_pair.second].size() < vocab[tk1].size() + vocab[tk2].size()
-                    )) {
-                    best_frequency = c2.second.first;
-                    best_pair = {tk1, tk2};
-                }
-            }
-        }
-        if (best_frequency == -1) return {-1, -1};
-        // Push this best_pair to the global merge events ''queue''
-        MERGE_EVENTS[best_pair] = GLOBAL_TOKEN_ID++;
-
-        // Execute all pending pullup events.
-        detect_and_pullup_children();
-        for (auto& c1 : this->children)
-            c1.second.second->detect_and_pullup_children();
-        return best_pair;
-    }
-
-    TrieNode* detect_and_pullup_children() {
-        /**
-        * Detect and execute all pullup events from this node.
-        * 
-        * for(c1, c2 in this->children, c1->children):
-        *   if (c1, c2) in MERGE_EVENTS:
-        *     pull_up(c1, c2, MERGE_EVENTS[(c1, c2)])
-        */
-
-        vector<pair<pair<int, int>, int>> pull_up_calls;
-        for (auto& c1 : this->children) {
-            int tk1 = c1.first;
-            for (auto& c2 : c1.second.second->children) {
-                int tk2 = c2.first;
-                if (MERGE_EVENTS.find({tk1, tk2}) != MERGE_EVENTS.end())
-                    pull_up_calls.push_back({{tk1, tk2}, MERGE_EVENTS[{tk1, tk2}]});
-            }
-        }
-        for (auto& args : pull_up_calls) {
-            this->pull_up(args.first.first, args.first.second, args.second);
-        }
-        return this;
-    }
-
-    TrieNode* pull_up(int tk1, int tk2, int trg) {
-        /**
-        * Pull up a node if possible.
-        * Before:
-        *        this
-        *         |
-        *        tk1
-        *       /   \
-        *     tk2   etc
-        * After:
-        *       this
-        *      /    \
-        *    trg    tk1
-        *            |
-        *           etc
-        * where trg contains the tree originally rooted at tk2.
-        */
-        TrieNode* c1 = this->children[tk1].second;
-        if (c1->children.find(tk2) == c1->children.end()) return nullptr; // This shouldn't happen
-        this->children[trg] = c1->children[tk2];
-        c1->children.erase(tk2);
-        return this;
-    }
-
     TrieNode* insert_vector(const vector<int>& tokens, int pos, int lim, int wt, int leaf_mark = -1) {
         /**
         * Insert the given indices from a vector from [pos, pos + lim) with weight wt.
@@ -143,14 +59,6 @@ struct TrieNode {
             temp = temp->children[t].second;
         }
         temp->mark = leaf_mark;
-        return this;
-    }
-
-    TrieNode* insert_suffixes(const vector<int>& tokens, int lim, int wt) {
-        /**
-        * Insert all clipped suffixes of the given word with weight wt.
-        */
-        for (int i = 0; i < tokens.size(); i++) this->insert_vector(tokens, i, lim, wt);
         return this;
     }
 };
@@ -199,8 +107,8 @@ map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_init
                 bytes.push_back(reverse_initial_vocab[string(1, c)]);
             }
         }
-
-        frequencies[bytes] += 1;
+        if (bytes.size() != 0)
+            frequencies[bytes] += 1;
         
         idx = j+1;
     }
@@ -208,32 +116,66 @@ map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_init
     return frequencies;
 }
 
-void trie_train(map<vector<int>, int>& corpus, unsigned int vocab_size) {
+void train(map<vector<int>, int>& corpus, unsigned int vocab_size) {
     /**
-    * Optimize BPE tokenization with a false suffix trie.
+    * Optimize BPE tokenization naively.
     */
     GLOBAL_TOKEN_ID = initial_vocab.size();
-    MERGE_EVENTS = map<pair<int, int>, int>();
-    TrieNode* trie = new TrieNode();
-    int progress = 0;
-    int tot = corpus.size();
-    for (auto& word : corpus) {
-        if (progress % 1000 == 0)
-            cout << "Creating trie: inserted " << progress << " of " << tot << "                   \r";
-        trie->insert_suffixes(word.first, MAX_TOKEN, word.second);
-        ++progress;
-    }
-    cout << "Completed trie insertion                                                 " << endl;
+    // cout << "HEY" << endl;
+
     while (GLOBAL_TOKEN_ID < vocab_size) {
-        pair<int, int> tuple = trie->highest_bytepair_and_pullup();
-        if (tuple.first == -1) {
-            cout << "No more merges possible.                                         " << endl;
-            return;
+        int best_x = -1;
+        int best_y = -1;
+        int best_score = -1;
+        // test: the score function is now freq * (vocab[x].size() + vocab[y].size() - 1)
+        // int longest_size = 0;
+        for (auto& p : corpus) {
+            // cout << "p = " << p.first.size() << endl;
+            vector<int> word = p.first;
+            int freq = p.second;
+            for (int i = 0; i + 1 < word.size(); ++i) {
+                int x = word[i];
+                int y = word[i + 1];
+                if (vocab[x].size() + vocab[y].size() > MAX_TOKEN) continue;
+                int score = freq * (vocab[x].size() + vocab[y].size() - 1);
+                // if (freq > best_freq || (freq == best_freq && vocab[x].size() + vocab[y].size() > longest_size)) {
+                if (score > best_score) {
+                    best_score = score;
+                    best_x = x;
+                    best_y = y;
+                    // longest_size = vocab[x].size() + vocab[y].size();
+                }
+            }
         }
-        vocab.push_back(vocab[tuple.first] + vocab[tuple.second]);
-        cout << "Current vocab size=" << vocab.size() << " created token " << vocab.back() << "                   \r";
+        // cout << "Best merge: " << vocab[best_x] << " " << vocab[best_y] << " " << best_freq << endl;
+        if (best_score < LOW_MERGE_CUTOFF) break;
+        if (best_x == -1) break;
+        string new_token = vocab[best_x] + vocab[best_y];
+        vocab.push_back(new_token);
+
+        // Update corpus
+        map<vector<int>, int> new_corpus;
+        for (auto& p : corpus) {
+            vector<int> word = p.first;
+            int freq = p.second;
+            vector<int> new_word;
+            int idx = 0;
+            while (idx < word.size()) {
+                if (idx + 1 < word.size() && (vocab[word[idx]] + vocab[word[idx + 1]] == new_token)) {
+                    new_word.push_back(GLOBAL_TOKEN_ID);
+                    idx += 2;
+                } else {
+                    new_word.push_back(word[idx]);
+                    idx += 1;
+                }
+            }
+            new_corpus[new_word] += freq;
+        }
+        GLOBAL_TOKEN_ID += 1;
+        corpus = new_corpus;
+        cout << "Training: " << GLOBAL_TOKEN_ID << " of " << vocab_size << " tokens,score = " << best_score << " new_token = " << new_token << "                   \r";
     }
-    cout << "Completed tokenization                                                   " << endl;
+    cout << endl;
 }
 
 TrieNode* create_vocab_trie() {
@@ -353,7 +295,9 @@ int main() {
     tie(initial_vocab, reverse_initial_vocab) = generate_initial_vocab();
     vocab = initial_vocab;
     map<vector<int>, int> frequencies = pre_tokenize(input_corpus, reverse_initial_vocab);
-    trie_train(frequencies, vocab_size);
+    train(frequencies, vocab_size);
+    // cout << "HEY" << endl;
+
     // "..//tokenizer_outputs//communistmanifesto_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt"
     string savefile = "..//tokenizer_outputs//" + WHICH_CORPUS + "_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt";
     dump_vocab_to_file(savefile);
@@ -373,7 +317,7 @@ int main() {
     assert (input_corpus == output_corpus);
 
     // Debugging tests:
-    if(false){        
+    if(true){        
         vector<string> tests;
         tests.push_back("Hello everyone! This is a test. I hope it works.");
         tests.push_back("x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}");
