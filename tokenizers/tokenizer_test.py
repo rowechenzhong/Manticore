@@ -30,16 +30,21 @@ from tokenizer import Tokenizer
 
 test: Tokenizer = Tokenizer()
 # print current directory
-print(os.getcwd())
-test.load(".\\tokenizer_outputs\\mahabharata_size4000_cap10.txt")
+# print(os.getcwd())
+# You should always run python files from the root directory for consistency.
 
-corpus1 = open("..\\corpus\\mahabharata1.txt").read()
-corpus2 = open("..\\corpus\\mahabharata2.txt").read()
-corpus3 = open("..\\corpus\\mahabharata3.txt").read()
+test.load("tokenizers\\tokenizer_outputs\\mahabharata_size4000_cap10.txt", debug=True)
+
+corpus1 = open("corpus\\mahabharata1.txt", "rb").read()
+corpus1 = "".join([chr(i) for i in corpus1])
+corpus2 = open("corpus\\mahabharata2.txt", "rb").read()
+corpus2 = "".join([chr(i) for i in corpus2])
+corpus3 = open("corpus\\mahabharata3.txt", "rb").read()
+corpus3 = "".join([chr(i) for i in corpus3])
 corpus = corpus1 + corpus2 + corpus3
 print(corpus[:100])
 
-tokenized_corpus = test.tokenize(corpus)
+tokenized_corpus = test.tokenize(corpus, debug=True)
 
 print(tokenized_corpus[:100])
 

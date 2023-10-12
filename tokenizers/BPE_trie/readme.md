@@ -3,18 +3,22 @@ Readout for Mahabharata BPE with pretokenization, size 4000 cap 10, (low merge c
 ```
 Corpus length: 16184097
 Pre-tokenizing: 16181000 of 16184097 frequency size is 88593
-Frequencies size: 88595
-Current vocab size=3999 current corpus size=3791978
-Tokenizing: 16166912 of 16184097
-Compression ratio:0.415205
+Completed trie insertion
+Completed tokenization
+Saved tokens to file: ..//tokenizer_outputs//mahabharata_size4000_cap10.txt
+Beginning tokenize
+Finished tokenizing
+Saving tokenization
+Compression ratio:0.458535
 Token length 0: 0
 Token length 1: 256
-Token length 2: 386
-Token length 3: 756
-Token length 4: 896
-Token length 5: 642
-Token length 6: 431
-Token length 7: 272
-Token length 8: 161
-Token length 9: 125
+Token length 2: 474
+Token length 3: 1194
+Token length 4: 929
+Token length 5: 515
+Token length 6: 280
+Token length 7: 160
+Token length 8: 94
+Token length 9: 60
+Token length 10: 38
 ```

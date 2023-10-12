@@ -90,42 +90,38 @@ class Tokenizer:
         Alright, let's create a BPE tokenizer.
         """
         self.vocab: TrieNode = TrieNode()
+        self.vocab_list: List[str] = []
         self.max_token_length = MAX_TOKEN
 
     def load(self, vocab_file, delimiter="<BRUH>", debug=False):
-        vocab_list = []
+        self.vocab_list = []
+        # lol whoops, add all of the tokens manually
+        for i in range(256):
+            s = chr(i)
+            self.vocab_list.append(s)
         with open(vocab_file, "rb") as f:
+            # read f as a list of bytes
             all_text = f.read()
-            all_text = all_text.decode("ascii", errors="ignore")
+            # convert each individual byte to a string
+            all_text = [chr(i) for i in all_text]
+            # join all the strings together
+            all_text = "".join(all_text)
             for token in all_text.split(delimiter):
-                vocab_list.append(token)
+                if len(token) <= 1:
+                    continue  # we just added the single characters
+                self.vocab_list.append(token)
                 self.max_token_length = max(self.max_token_length, len(token))
         if debug:
             length_data = [0 for i in range(self.max_token_length + 1)]
-            for token in vocab_list:
+            for token in self.vocab_list:
                 length_data[len(token)] += 1
 
-            print("Loaded vocab of size ", len(vocab_list))
+            print("Loaded vocab of size ", len(self.vocab_list))
             print("Max token length is ", self.max_token_length)
             for i in range(self.max_token_length + 1):
                 print(i, length_data[i])
 
-        self.vocab = TrieNode.create_vocab_trie(vocab_list)
-
-    # def generate_initial_vocab(self) -> Tuple[List[str], Dict[str, int]]:
-    #     """
-    #     Generate the initial vocabulary.
-
-    #     Returns:
-    #         Tuple[List[str], Dict[str, int]]: Initial vocabulary and reverse mapping.
-    #     """
-    #     initial_vocab = ["<unk>"]
-    #     reverse_initial_vocab = {"<unk>": 0}
-    #     for i in range(256):
-    #         s = chr(i)
-    #         initial_vocab.append(s)
-    #         reverse_initial_vocab[s] = i + 1
-    #     return initial_vocab, reverse_initial_vocab
+        self.vocab = TrieNode.create_vocab_trie(self.vocab_list)
 
     def pre_tokenize(self, corpus: str, reverse_initial_vocab: Dict[str, int]) -> Dict[List[int], int]:
         """
@@ -154,7 +150,7 @@ class Tokenizer:
         print()
         return frequencies
 
-    def tokenize(self, corpus: str) -> List[int]:
+    def tokenize(self, corpus: str, debug: bool = False) -> List[int]:
         """
         Tokenize the corpus.
 
@@ -196,4 +192,30 @@ class Tokenizer:
                     f"Tokenizing ........ {rowechen_ptr} of {len(corpus)}", end="\r")
 
         print("Finished tokenizing", end=" " * 29 + "\n")
+
+        if debug:
+            # print number of tokens that never got used
+            used = [False for i in range(len(self.vocab_list))]
+            for i in tokenized_corpus:
+                used[i] = True
+            print("Number of tokens that never got used: ",
+                  len([i for i in used if not i]))
+
         return tokenized_corpus
+
+    def detokenize(self, corpus: List[int]) -> str:
+        """
+        Detokenize the corpus.
+
+        Args:
+            corpus (List[int]): Input corpus.
+
+        Returns:
+            str: Detokenized corpus.
+        """
+        detokenized_corpus = ""
+        for i in range(len(corpus)):
+            if i % 1000 == 0:
+                print(f"Detokenizing: {i} of {len(corpus)}", end="\r")
+            detokenized_corpus += self.vocab_list[corpus[i]]
+        return detokenized_corpus

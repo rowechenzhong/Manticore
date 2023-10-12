@@ -326,7 +326,7 @@ int main() {
     // Load the corpus
     string input_corpus;
 
-    string WHICH_CORPUS = "communistmanifesto";
+    string WHICH_CORPUS = "mahabharata";
     stringstream buf;
     
     if (WHICH_CORPUS == "communistmanifesto") {
@@ -354,13 +354,10 @@ int main() {
     vocab = initial_vocab;
     map<vector<int>, int> frequencies = pre_tokenize(input_corpus, reverse_initial_vocab);
     trie_train(frequencies, vocab_size);
-    
-    // Save the tokens
-    if (WHICH_CORPUS == "communistmanifesto")
-        dump_vocab_to_file("..//tokenizer_outputs//communistmanifesto_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt");
-    else if (WHICH_CORPUS == "mahabharata")
-        dump_vocab_to_file("..//tokenizer_outputs//mahabharata_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt");
-
+    // "..//tokenizer_outputs//communistmanifesto_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt"
+    string savefile = "..//tokenizer_outputs//" + WHICH_CORPUS + "_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt";
+    dump_vocab_to_file(savefile);
+    cout << "Saved tokens to file: " << savefile << endl;
 
     // Tokenize text
     cout << "Beginning tokenize" << endl;
@@ -376,7 +373,7 @@ int main() {
     assert (input_corpus == output_corpus);
 
     // Debugging tests:
-    if(true){        
+    if(false){        
         vector<string> tests;
         tests.push_back("Hello everyone! This is a test. I hope it works.");
         tests.push_back("x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}");
@@ -393,11 +390,12 @@ int main() {
 
 
     // print the distribution of token lengths.
-    vector<int> token_lengths(MAX_TOKEN, 0);
+    vector<int> token_lengths(MAX_TOKEN + 1, 0);
     for (string token : vocab) {
         token_lengths[token.size()] += 1;
+        assert (token.size() <= MAX_TOKEN);
     }
-    for (int i = 0; i < MAX_TOKEN; ++i) {
+    for (int i = 0; i <= MAX_TOKEN; ++i) {
         cout << "Token length " << i << ": " << token_lengths[i] << endl;
     }
 
