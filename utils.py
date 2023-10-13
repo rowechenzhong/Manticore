@@ -25,4 +25,4 @@ class SubstringDataset(Dataset):
         """
         Return the substring of the corpus at index i.
         """
-        return self.corpus[i:i + self.size], self.corpus[i + 1:i + self.size + 1]
+        return self.corpus[i:i + self.size], self.corpus[i + 1: i + self.size + 1]

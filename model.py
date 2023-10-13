@@ -1,13 +1,13 @@
 import torch
 from transformer import Transformer
-from embedding import Embedding
-from tokenizers.naive_BPE_tokenizer.tokenizer import Tokenizer
+from embedding import Embedding, UnEmbedding
+from tokenizers.tokenizer import Tokenizer
 
 
 class Model(torch.nn.Module):
     def __init__(self,
                  embedding_in: Embedding,
-                 embedding_out: Embedding,
+                 embedding_out: UnEmbedding,
                  size=64,
                  layers=8,
                  size_internal=None,
@@ -39,20 +39,20 @@ class Model(torch.nn.Module):
         input: (batch_size, seq_len, size)
         output: (batch_size, seq_len, size)
         """
-        if self.training:
-            # First, we need to get the embeddings.
-            embedding = self.embedding_in(input)
+        # if self.training:
+        # First, we need to get the embeddings.
+        embedding = self.embedding_in(input)
 
-            # Now, we need to pass the embedding through the Transformer layers.
-            for transformer in self.transformers:
-                embedding = transformer(embedding)
+        # Now, we need to pass the embedding through the Transformer layers.
+        for transformer in self.transformers:
+            embedding = transformer(embedding)
 
-            # Finally, we need to apply a linear layer to the embedding
-            # to get the final output.
-            output = self.embedding_out(embedding)
+        # Finally, we need to apply a linear layer to the embedding
+        # to get the final output.
+        output = self.embedding_out(embedding)
 
-            return output
-        else:
-            # Auto-regressive decoding.
-            # We are guaranteed that
-            embedding = self.embedding_in(input)
+        return output
+        # else:
+        #     # Auto-regressive decoding.
+        #     # We are guaranteed that
+        #     embedding = self.embedding_in(input)

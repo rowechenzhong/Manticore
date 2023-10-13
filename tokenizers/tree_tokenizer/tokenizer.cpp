@@ -19,7 +19,7 @@ map<string, int> reverse_initial_vocab;
 // vector<int> initial_vocab_lengths;
 vector<string> vocab;
 
-#define MAX_TOKEN 10 // maximum token length
+#define MAX_TOKEN 5 // maximum token length
 #define LOW_MERGE_CUTOFF 500 // minimum frequency to merge
 #define ll long long
 
@@ -386,16 +386,18 @@ int main() {
             cout << endl;
             assert (test == output);
         }
-    }    
+    }
 
 
     // print the distribution of token lengths.
     vector<int> token_lengths(MAX_TOKEN + 1, 0);
+    int max_used = 0;
     for (string token : vocab) {
         token_lengths[token.size()] += 1;
         assert (token.size() <= MAX_TOKEN);
+        max_used = max(max_used, (int)token.size());
     }
-    for (int i = 0; i <= MAX_TOKEN; ++i) {
+    for (int i = 0; i <= max_used; i++) {
         cout << "Token length " << i << ": " << token_lengths[i] << endl;
     }
 

@@ -93,6 +93,9 @@ class Tokenizer:
         self.vocab_list: List[str] = []
         self.max_token_length = MAX_TOKEN
 
+    def __len__(self):
+        return len(self.vocab_list)
+
     def load(self, vocab_file, delimiter="<BRUH>", debug=False):
         self.vocab_list = []
         # lol whoops, add all of the tokens manually
@@ -195,11 +198,15 @@ class Tokenizer:
 
         if debug:
             # print number of tokens that never got used
-            used = [False for i in range(len(self.vocab_list))]
+            usage = [0 for i in range(len(self.vocab_list))]
             for i in tokenized_corpus:
-                used[i] = True
-            print("Number of tokens that never got used: ",
-                  len([i for i in used if not i]))
+                usage[i] += 1
+            freq_usage = [0 for i in range(10)]
+            for i in usage:
+                freq_usage[min(i, 9)] += 1
+            for i in range(9):
+                print(i, freq_usage[i])
+            print(">=9", freq_usage[9])
 
         return tokenized_corpus
 
