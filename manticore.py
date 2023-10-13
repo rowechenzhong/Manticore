@@ -66,6 +66,7 @@ class Manticore:
             print(f"Epoch {epoch}")
             trainings_loss = 0
             self.model.train()
+            # tqdm with time estimate
             for x, y in tqdm(train):
                 x = x.to(self.device)
                 y = y.to(self.device)
@@ -166,6 +167,10 @@ if __name__ == "__main__":
     embedding_out = UnEmbedding(len(tokenizer), SIZE)
 
     model = Model(embedding_in, embedding_out, size=SIZE, layers=LAYERS)
+    print("Parameters:")
+    for name, param in model.named_parameters():
+        print(name, param.shape)
+    print("Total parameters:", sum([param.numel() for param in model.parameters()]))
     manticore = Manticore(model, tokenizer, device=device)
 
     manticore.train(train_corpus, test_corpus,
