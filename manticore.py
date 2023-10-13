@@ -96,7 +96,7 @@ class Manticore:
         Generate a string of a given length from a given seed.
         """
         tokenized_seed: torch.Tensor = torch.tensor(
-            self.tokenizer.tokenize(seed)).unsqueeze(0) # (1, seq_len)
+            self.tokenizer.tokenize(seed)).unsqueeze(0).to(device) # (1, seq_len)
         
         self.model.eval()
         with torch.no_grad():
@@ -173,11 +173,13 @@ if __name__ == "__main__":
     print("Total parameters:", sum([param.numel() for param in model.parameters()]))
     manticore = Manticore(model, tokenizer, device=device)
 
-    manticore.train(train_corpus, test_corpus,
-                    size=SIZE, batch_size=BATCH_SIZE, epochs=EPOCHS)
+    # manticore.train(train_corpus, test_corpus,
+    #                 size=SIZE, batch_size=BATCH_SIZE, epochs=EPOCHS)
     
-    manticore.save("manticore_chungus")
-    print(manticore.generate("The ", 100))
+    # manticore.save("manticore_chungus")
+    manticore.load("manticore_chungus")
+
+    print(repr(manticore.generate("The ", 100)))
     
     # manticore.load("manticore")
     # prayge
