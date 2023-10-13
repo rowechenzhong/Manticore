@@ -3,7 +3,7 @@ import numpy as np
 
 
 class Attention(torch.nn.Module):
-    def __init__(self, size, internal_size=None, decoder=False):
+    def __init__(self, size, internal_size=None, decoder=True):
         """
         Alright, let's create an attention layer.
         This layer will take in the query and the key-value pairs

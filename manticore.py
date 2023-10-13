@@ -23,7 +23,8 @@ class Manticore:
               test_corpus: str,
               size: int = 100,
               batch_size: int = 100,
-              epochs: int = 10) -> None:
+              epochs: int = 10,
+              debug: bool = False) -> None:
         """
         Train the model on a corpus, which is just a list.
         The model will be trained to predict the next token,
@@ -48,10 +49,10 @@ class Manticore:
             self.tokenizer.tokenize(test_corpus), dtype=torch.int64)
         test = torch.utils.data.DataLoader(
             SubstringDataset(tokenized_test_corpus, size), batch_size=batch_size, shuffle=True, pin_memory=True)
-        
+
         # The purpose of pin_memory is to speed up the transfer of data from CPU to GPU, which is done by transferring
         # the data to the pinned memory first and then transferring it to the GPU. This is because the data is transferred
-        # from the CPU to the GPU through the PCI-E bus. The PCI-E bus is shared by all devices on the motherboard, 
+        # from the CPU to the GPU through the PCI-E bus. The PCI-E bus is shared by all devices on the motherboard,
         # and the data transfer is slow. The pinned memory is allocated in the memory area that is not shared by the
         # PCI-E bus, so the data transfer is fast. The disadvantage is that the pinned memory cannot be
         # shared by multiple processes, so it is not suitable for multi-process data reading.
@@ -83,12 +84,28 @@ class Manticore:
             test_loss = 0
             self.model.eval()
             with torch.no_grad():
-                for x, y in tqdm(test):
-                    x = x.to(self.device)
-                    y = y.to(self.device)
+                for x, y in test:
+                    x = x.to(self.device)  # (batch_size, seq_len)
+                    y = y.to(self.device)  # (batch_size, seq_len)
+                    # (batch_size, vocab_size, seq_len)
                     y_pred = self.model(x).permute(0, 2, 1)
                     l = loss(y_pred, y)
                     test_loss += l.item()
+
+                    if debug:
+                        print("In test loop")
+                        print("x:", x.shape, x.dtype)
+                        print(self.tokenizer.detokenize(
+                            x[0].tolist()))  # (seq_len)
+                        print("y:", y.shape, y.dtype)
+                        print(self.tokenizer.detokenize(
+                            y[0].tolist()))  # (seq_len)
+                        # report top 5 predictions
+                        print("y_pred:", y_pred.shape, y_pred.dtype)
+                        top_5 = torch.topk(y_pred[0], 5)  # (5, seq_len)
+                        for i in range(5):
+                            print(
+                                f"{self.tokenizer.detokenize(top_5.indices[i].tolist())} with probability {top_5.values[i]}")
             print(f"Test loss: {test_loss / len(test)}")
 
     def generate(self, seed: str, length: int = 100) -> str:
@@ -96,8 +113,10 @@ class Manticore:
         Generate a string of a given length from a given seed.
         """
         tokenized_seed: torch.Tensor = torch.tensor(
-            self.tokenizer.tokenize(seed)).unsqueeze(0) # (1, seq_len)
-        
+            self.tokenizer.tokenize(seed)).unsqueeze(0)  # (1, seq_len)
+
+        tokenized_seed.to(self.device)
+
         self.model.eval()
         with torch.no_grad():
             for _ in range(length):
@@ -134,7 +153,7 @@ if __name__ == "__main__":
 
     NERFED = False
 
-    if NERFED:        
+    if NERFED:
         corpus = open("corpus\\communistmanifesto.txt", "rb").read()
         corpus = "".join([chr(i) for i in corpus])
         train_corpus = corpus[:int(0.8 * len(corpus))]
@@ -144,6 +163,7 @@ if __name__ == "__main__":
         LAYERS = 2
         BATCH_SIZE = 20
         EPOCHS = 2
+        DEBUG = True
     else:
         corpus1 = open("corpus\\mahabharata1.txt", "rb").read()
         corpus1 = "".join([chr(i) for i in corpus1])
@@ -159,28 +179,32 @@ if __name__ == "__main__":
         LAYERS = 8
         BATCH_SIZE = 100
         EPOCHS = 10
+        DEBUG = False
 
     tokenizer = Tokenizer()
-    tokenizer.load("./tokenizers/tokenizer_outputs/mahabharata_size4000_cap10.txt")
+    tokenizer.load(
+        "./tokenizers/tokenizer_outputs/mahabharata_size4000_cap10.txt")
 
     embedding_in = Embedding(len(tokenizer), SIZE)
     embedding_out = UnEmbedding(len(tokenizer), SIZE)
 
-    model = Model(embedding_in, embedding_out, size=SIZE, layers=LAYERS)
-    print("Parameters:")
-    for name, param in model.named_parameters():
-        print(name, param.shape)
-    print("Total parameters:", sum([param.numel() for param in model.parameters()]))
+    model = Model(embedding_in, embedding_out,
+                  size=SIZE, layers=LAYERS, decoder=True)
+    if DEBUG:
+        print("Parameters:")
+        for name, param in model.named_parameters():
+            print(name, param.shape)
+    print("Total parameters:", sum([param.numel()
+          for param in model.parameters()]))
     manticore = Manticore(model, tokenizer, device=device)
 
     manticore.train(train_corpus, test_corpus,
-                    size=SIZE, batch_size=BATCH_SIZE, epochs=EPOCHS)
-    
+                    size=SIZE, batch_size=BATCH_SIZE, epochs=EPOCHS, debug=DEBUG)
+
     manticore.save("manticore_chungus")
     print(manticore.generate("The ", 100))
-    
+
     # manticore.load("manticore")
     # prayge
 
     print(manticore.generate("The ", 100))
-

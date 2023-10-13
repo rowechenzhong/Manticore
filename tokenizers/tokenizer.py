@@ -225,4 +225,5 @@ class Tokenizer:
             if i % 1000 == 0:
                 print(f"Detokenizing: {i} of {len(corpus)}", end="\r")
             detokenized_corpus += self.vocab_list[corpus[i]]
+        print()
         return detokenized_corpus
