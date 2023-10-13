@@ -83,6 +83,7 @@ class Manticore:
             print(f"Training loss: {trainings_loss / len(train)}")
             test_loss = 0
             self.model.eval()
+            one_shown = False
             with torch.no_grad():
                 for x, y in test:
                     x = x.to(self.device)  # (batch_size, seq_len)
@@ -92,7 +93,7 @@ class Manticore:
                     l = loss(y_pred, y)
                     test_loss += l.item()
 
-                    if debug:
+                    if debug and not one_shown:
                         print("In test loop")
                         print("x:", x.shape, x.dtype)
                         print(self.tokenizer.detokenize(
@@ -102,10 +103,12 @@ class Manticore:
                             y[0].tolist()))  # (seq_len)
                         # report top 5 predictions
                         print("y_pred:", y_pred.shape, y_pred.dtype)
-                        top_5 = torch.topk(y_pred[0], 5)  # (5, seq_len)
+                        top_5 = torch.topk(y_pred[0], 5, dim=0)  # (5, seq_len)
                         for i in range(5):
-                            print(
-                                f"{self.tokenizer.detokenize(top_5.indices[i].tolist())} with probability {top_5.values[i]}")
+                            print(self.tokenizer.detokenize(
+                                top_5.indices[i].tolist()))
+                            print(top_5.values[i])
+                        one_shown = True
             print(f"Test loss: {test_loss / len(test)}")
 
     def generate(self, seed: str, length: int = 100) -> str:
@@ -204,7 +207,7 @@ if __name__ == "__main__":
     manticore.save("manticore_chungus")
     print(manticore.generate("The ", 100))
 
-    # manticore.load("manticore")
+    manticore.load("manticore_chungus")
     # prayge
 
     print(manticore.generate("The ", 100))
