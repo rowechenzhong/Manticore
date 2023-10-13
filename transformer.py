@@ -3,12 +3,13 @@ from attention import Attention
 
 
 class Transformer(torch.nn.Module):
-    def __init__(self, size, size_internal=None, decoder=True):
+    def __init__(self, size, size_internal=None, attention_size=None, decoder=True):
         """
         Alright, let's create a Transformer layer.
 
         :param size: The size of the input and output.
         :param size_internal: The size of the linear layer in the middle.
+        :param attention_size: The size of the Q, K, and V in the attention
         :param decoder: Whether this is a decoder layer or not.
         """
         super().__init__()
@@ -17,7 +18,8 @@ class Transformer(torch.nn.Module):
             size_internal = size * 4
             # People usually use 4 times the size for the internal size.
 
-        self.attention = Attention(size, decoder=decoder)
+        self.attention = Attention(
+            size, attention_size=attention_size, decoder=decoder)
 
         # We'll use 2 linear layers to transform the output of the attention
         # layer into the final output.

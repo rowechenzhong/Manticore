@@ -8,24 +8,24 @@ class Model(torch.nn.Module):
     def __init__(self,
                  embedding_in: Embedding,
                  embedding_out: UnEmbedding,
-                 size=64,
-                 layers=8,
-                 size_internal=None,
-                 decoder=False
+                 transformer_params: dict,
+                 layers: int = 8
                  ):
         """
         Alright, let's create a Transformer layer.
+
+        :param embedding_in: The embedding layer for the input.
+        :param embedding_out: The embedding layer for the output.
+        :param transformer_params: The parameters for the Transformer layer.
+        This should include size, size_internal, attention_size, and decoder.
+        :param layers: The number of Transformer layers to stack.
         """
         super().__init__()
 
-        if size_internal is None:
-            size_internal = size * 4
-            # People usually use 4 times the size for the internal size.
-
+        self.transformer_params = transformer_params
         transformers = []
         for i in range(layers):
-            transformers.append(Transformer(
-                size, size_internal, decoder=decoder))
+            transformers.append(Transformer(**transformer_params))
         self.transformers = torch.nn.ModuleList(transformers)
 
         self.embedding_in = embedding_in

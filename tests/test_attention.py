@@ -3,7 +3,7 @@ from attention import Attention
 
 
 def test_attention_fixed(decoder=False):
-    encoder = Attention(size=3, internal_size=2, decoder=decoder)
+    encoder = Attention(size=3, attention_size=2, decoder=decoder)
 
     # Sanity checks
     # A = torch.tensor([[[1, 0, 0], [0, 0, 3], [0, 1, 0]]], dtype=torch.float64)
@@ -79,7 +79,7 @@ def test_attention_fixed(decoder=False):
 
 
 def test_attention(size=3, sequence_length=4, internal_size=2, batch_size=5, decoder=False):
-    encoder = Attention(size=3, internal_size=2, decoder=decoder)
+    encoder = Attention(size=3, attention_size=2, decoder=decoder)
 
     # Sanity checks
     # A = torch.tensor([[[1, 0, 0], [0, 0, 3], [0, 1, 0]]], dtype=torch.float64)

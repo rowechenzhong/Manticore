@@ -3,7 +3,7 @@ import numpy as np
 
 
 class Attention(torch.nn.Module):
-    def __init__(self, size, internal_size=None, decoder=True):
+    def __init__(self, size, attention_size=None, decoder=True):
         """
         Alright, let's create an attention layer.
         This layer will take in the query and the key-value pairs
@@ -12,16 +12,16 @@ class Attention(torch.nn.Module):
         For simplicity, we will have 1 head in this implementation.
         """
         super().__init__()
-        if internal_size is None:
-            internal_size = size
-        # self.internal_size = internal_size
+        if attention_size is None:
+            attention_size = size * 4
+        # self.attention_size = attention_size
         # self.size = size
 
         # First up, we need to create the queries, keys, and values from
         # the input. We'll use a linear layer to do this.
-        self.query = torch.nn.Linear(size, internal_size)
-        self.key = torch.nn.Linear(size, internal_size)
-        self.value = torch.nn.Linear(size, internal_size)
+        self.query = torch.nn.Linear(size, attention_size)
+        self.key = torch.nn.Linear(size, attention_size)
+        self.value = torch.nn.Linear(size, size)
 
         self.decoder = decoder
 
@@ -31,14 +31,14 @@ class Attention(torch.nn.Module):
         and values.
 
         input: (batch_size, seq_len, size)
-        query: (batch_size, seq_len, internal_size)
-        key: (batch_size, seq_len, internal_size)
-        value: (batch_size, seq_len, internal_size)
+        query: (batch_size, seq_len, attention_size)
+        key: (batch_size, seq_len, attention_size)
+        value: (batch_size, seq_len, size)
         """
         # First, we'll pass the input through the linear layers.
-        query = self.query(input)
-        key = self.key(input)
-        value = self.value(input)
+        query = self.query(input)  # (batch_size, seq_len, attention_size)
+        key = self.key(input)  # (batch_size, seq_len, attention_size)
+        value = self.value(input)  # (batch_size, seq_len, size)
 
         return query, key, value
 
@@ -47,8 +47,8 @@ class Attention(torch.nn.Module):
         This function takes in the queries and keys, and returns
         the attention weights.
 
-        query: (batch_size, seq_len, size)
-        key: (batch_size, seq_len, size)
+        query: (batch_size, seq_len, attention_size)
+        key: (batch_size, seq_len, attention_size)
         attention_weights: (batch_size, seq_len, seq_len)
         """
         batch_size, seq_len, size = query.shape
@@ -65,7 +65,7 @@ class Attention(torch.nn.Module):
         attention_weights = attention_weights / (seq_len ** 0.5)
 
         # print("Normalized attention weights inside model")
-        # print(self.size, self.internal_size)
+        # print(self.size, self.attention_size)
         # print(attention_weights)
 
         if self.decoder:

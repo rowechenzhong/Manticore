@@ -6,6 +6,7 @@ import torch
 from utils import SubstringDataset
 from embedding import Embedding, UnEmbedding
 from tqdm import tqdm
+from os.path import commonprefix
 # Path: manticore.py
 
 
@@ -154,7 +155,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
-    NERFED = False
+    NERFED = True
 
     if NERFED:
         corpus = open("corpus\\communistmanifesto.txt", "rb").read()
@@ -162,10 +163,10 @@ if __name__ == "__main__":
         train_corpus = corpus[:int(0.8 * len(corpus))]
         test_corpus = corpus[int(0.8 * len(corpus)):]
 
-        SIZE = 20
+        SIZE = 256
         LAYERS = 2
-        BATCH_SIZE = 20
-        EPOCHS = 2
+        BATCH_SIZE = 100
+        EPOCHS = 4
         DEBUG = True
     else:
         corpus1 = open("corpus\\mahabharata1.txt", "rb").read()
@@ -178,12 +179,14 @@ if __name__ == "__main__":
         train_corpus = corpus1 + corpus2
         test_corpus = corpus3
 
-        SIZE = 64
-        LAYERS = 8
+        SIZE = 256
+        LAYERS = 80
         BATCH_SIZE = 100
         EPOCHS = 10
         DEBUG = False
 
+    transformer_params = {"size": SIZE, "size_internal": SIZE *
+                          4, "attention_size": SIZE * 4, "decoder": True}
     tokenizer = Tokenizer()
     tokenizer.load(
         "./tokenizers/tokenizer_outputs/mahabharata_size4000_cap10.txt")
@@ -192,11 +195,16 @@ if __name__ == "__main__":
     embedding_out = UnEmbedding(len(tokenizer), SIZE)
 
     model = Model(embedding_in, embedding_out,
-                  size=SIZE, layers=LAYERS, decoder=True)
+                  transformer_params, layers=LAYERS)
     if DEBUG:
         print("Parameters:")
+        # Hack to print out tree structure:
+        prefix = ""
         for name, param in model.named_parameters():
-            print(name, param.shape)
+            common_prefix = commonprefix([prefix, name])
+            prefix = name
+            new_name = " " * len(common_prefix) + name[len(common_prefix):]
+            print(new_name, param.shape)
     print("Total parameters:", sum([param.numel()
           for param in model.parameters()]))
     manticore = Manticore(model, tokenizer, device=device)

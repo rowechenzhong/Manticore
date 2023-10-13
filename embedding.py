@@ -45,6 +45,16 @@ class Embedding(torch.nn.Module):
             x = torch.arange(seq_len).unsqueeze(1).repeat(1, self.size // 2)
             positional_encoding = torch.zeros_like(embedding)
             period = 10000 ** (2 * torch.arange(self.size // 2) / self.size)
+
+            # print("Periods: ", period)
+            # Periods:
+            # tensor([1.0000e+00, 1.3335e+00, 1.7783e+00, 2.3714e+00, 3.1623e+00, 4.2170e+00,
+            # 5.6234e+00, 7.4989e+00, 1.0000e+01, 1.3335e+01, 1.7783e+01, 2.3714e+01,
+            # 3.1623e+01, 4.2170e+01, 5.6234e+01, 7.4989e+01, 1.0000e+02, 1.3335e+02,
+            # 1.7783e+02, 2.3714e+02, 3.1623e+02, 4.2170e+02, 5.6234e+02, 7.4989e+02,
+            # 1.0000e+03, 1.3335e+03, 1.7783e+03, 2.3714e+03, 3.1623e+03, 4.2170e+03,
+            # 5.6234e+03, 7.4989e+03])
+
             period = period.unsqueeze(0).repeat(seq_len, 1)
             positional_encoding[:, :, 0::2] = torch.sin(x / period)
             positional_encoding[:, :, 1::2] = torch.cos(x / period)
@@ -52,6 +62,7 @@ class Embedding(torch.nn.Module):
             embedding += positional_encoding
 
         return embedding
+
 
 class UnEmbedding(torch.nn.Module):
     def __init__(self, vocab_size, size):
