@@ -131,7 +131,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
-    NERFED = True
+    NERFED = False
 
     if NERFED:        
         corpus = open("corpus\\communistmanifesto.txt", "rb").read()
@@ -168,13 +168,13 @@ if __name__ == "__main__":
     model = Model(embedding_in, embedding_out, size=SIZE, layers=LAYERS)
     manticore = Manticore(model, tokenizer, device=device)
 
-    # manticore.train(train_corpus, test_corpus,
-    #                 size=SIZE, batch_size=BATCH_SIZE, epochs=EPOCHS)
+    manticore.train(train_corpus, test_corpus,
+                    size=SIZE, batch_size=BATCH_SIZE, epochs=EPOCHS)
     
-    # manticore.save("manticore")
+    manticore.save("manticore_chungus")
     print(manticore.generate("The ", 100))
     
-    manticore.load("manticore")
+    # manticore.load("manticore")
     # prayge
 
     print(manticore.generate("The ", 100))
