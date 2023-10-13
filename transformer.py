@@ -1,5 +1,6 @@
 import torch
 from attention import Attention
+from LayerNorm import LayerNorm
 
 
 class Transformer(torch.nn.Module):
@@ -28,8 +29,8 @@ class Transformer(torch.nn.Module):
 
         # We also add two LayerNorms. This is a normalization technique
         # that helps with training.
-        self.norm_1 = torch.nn.LayerNorm(size)
-        self.norm_2 = torch.nn.LayerNorm(size)
+        self.norm_1 = LayerNorm(size)
+        self.norm_2 = LayerNorm(size)
 
     def forward(self, input):
         """
@@ -49,8 +50,11 @@ class Transformer(torch.nn.Module):
 
         # Now, we need to apply the attention weights to the values.
         # This will give us the output of the attention layer.
+        # Note that we use bmm to do a batch matrix multiplication.
+        # Note that we also add the input to the output. This is called
+        # a residual connection.
         # (batch_size, seq_len, size)
-        attention_output = torch.bmm(attention_weights, value)
+        attention_output = torch.bmm(attention_weights, value) + input
 
         # Apply a LayerNorm to the attention output.
         # (batch_size, seq_len, size)

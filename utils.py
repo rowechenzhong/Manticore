@@ -2,6 +2,7 @@ from typing import List, Tuple, Dict, Any, Union
 import torch
 from torch.utils.data import Dataset
 
+from os.path import commonprefix
 
 class SubstringDataset(Dataset):
     """
@@ -26,3 +27,18 @@ class SubstringDataset(Dataset):
         Return the substring of the corpus at index i.
         """
         return self.corpus[i:i + self.size], self.corpus[i + 1: i + self.size + 1]
+
+
+def print_parameters(model: torch.nn.Module, DEBUG: bool = False) -> None:
+    if DEBUG:
+        print("Parameters:")
+        # Hack to print out tree structure:
+        prefix = ""
+        for name, param in model.named_parameters():
+            common_prefix = commonprefix([prefix, name])
+            prefix = name
+            new_name = " " * len(common_prefix) + name[len(common_prefix):]
+            print(new_name, param.shape)
+
+    print("Total parameters:", sum([param.numel()
+          for param in model.parameters()]))
