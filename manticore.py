@@ -145,7 +145,7 @@ class Manticore:
         self.model.eval()
         with torch.no_grad():
             for _ in range(length):
-                y_pred = self.model(tokenized_seed[-100:])
+                y_pred = self.model(tokenized_seed)
                 # print(y_pred.shape)
                 # only take the last token
                 y_pred = y_pred[:, -1, :].unsqueeze(1).to(self.device)
@@ -190,7 +190,7 @@ if __name__ == "__main__":
 
     EXPERIMENT = 2
     LOAD_SAVED = True
-    LOAD_EPOCH = 0
+    LOAD_EPOCH = 2
 
     if EXPERIMENT == 1:
         corpus = open("./corpus/communistmanifesto.txt", "rb").read()
@@ -268,9 +268,19 @@ if __name__ == "__main__":
     print_parameters(model, DEBUG=DEBUG)
 
     manticore = Manticore(model, tokenizer, device=device)
+    
 
     if LOAD_SAVED:
         manticore.load(SAVE_NAME + "_epoch" + str(LOAD_EPOCH))
+        print(manticore.generate(
+            r"""II.  It is high time that Communists should openly, in the
+            face of the whole world, publish their views, """, 1000))
+
+        print(manticore.generate(
+            """I feel impelled to speak today in a language that in a sense is new,
+            one which I, who have spent so much of my life in the military profession,""",
+            1000)
+        )
         manticore.train(train_corpus, test_corpus,
                         seq_len=SEQ_LEN, batch_size=BATCH_SIZE, epochs=EPOCHS, debug=DEBUG, save_per_epoch=SAVE_PER_EPOCH,
                         save_name=SAVE_NAME, start_epoch=LOAD_EPOCH + 1)
