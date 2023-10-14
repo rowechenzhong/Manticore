@@ -256,7 +256,7 @@ if __name__ == "__main__":
 
     EXPERIMENT = 2
     LOAD_SAVED = True
-    LOAD_EPOCH = 2
+    LOAD_EPOCH = 4
 
     if EXPERIMENT == 1:
         corpus = open("./corpus/communistmanifesto.txt", "rb").read()
