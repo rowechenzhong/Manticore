@@ -20,11 +20,14 @@ class Manticore:
         self.device = device
 
     def train(self, train_corpus: str,
-              test_corpus: str,
-              seq_len: int = 100,
-              batch_size: int = 100,
-              epochs: int = 10,
-              debug: bool = False) -> None:
+                test_corpus: str,
+                seq_len: int = 100,
+                batch_size: int = 100,
+                epochs: int = 10,
+                debug: bool = False,
+                save_per_epoch:bool = False,
+                save_name:str = False,
+                start_epoch:int = 0) -> None:
         """
         Train the model on a corpus, which is just a list.
         The model will be trained to predict the next token,
@@ -63,60 +66,73 @@ class Manticore:
         # so we don't need to apply softmax. Just use a NLLL loss.
         loss = torch.nn.NLLLoss()
         optimizer = torch.optim.Adam(self.model.parameters())
-        for epoch in range(epochs):
+        for epoch in range(start_epoch, epochs):
             print(f"Epoch {epoch}")
             trainings_loss = 0
             self.model.train()
             # tqdm with time estimate
-            for x, y in tqdm(train):
-                x = x.to(self.device)
-                y = y.to(self.device)
-                optimizer.zero_grad()
-                # print("In train loop")
-                # print(x.shape, y.shape)
-                # print(x.dtype, y.dtype)
-                y_pred = self.model(x).permute(0, 2, 1)
+            with tqdm(enumerate(train), total=len(train)) as pbar:
+                for i, (x, y) in pbar:
+                    x = x.to(self.device)
+                    y = y.to(self.device)
+                    optimizer.zero_grad()
+                    # print("In train loop")
+                    # print(x.shape, y.shape)
+                    # print(x.dtype, y.dtype)
+                    y_pred = self.model(x).permute(0, 2, 1)
 
-                # only incur loss on last half of the sequence
-                y_pred = y_pred[:, :, -seq_len//2:]
-                y = y[:, -seq_len//2:]
+                    # only incur loss on last half of the sequence
+                    # y_pred = y_pred[:, :, -seq_len//2:]
+                    # y = y[:, -seq_len//2:]
 
-                l = loss(y_pred, y)
-                trainings_loss += l.item()
-                l.backward()
-                optimizer.step()
+                    l = loss(y_pred, y)
+                    trainings_loss += l.item()
+                    l.backward()
+                    optimizer.step()
+
+                    # write training loss to tqdm
+                    pbar.set_postfix({"Training loss": trainings_loss / (i + 1)})
+
             print(f"Training loss: {trainings_loss / len(train)}")
+
+            if save_per_epoch:
+                self.save(SAVE_NAME + "_epoch" + str(epoch))
+
             test_loss = 0
             self.model.eval()
             one_shown = False
             with torch.no_grad():
-                for x, y in test:
-                    x = x.to(self.device)  # (batch_size, seq_len)
-                    y = y.to(self.device)  # (batch_size, seq_len)
-                    # (batch_size, vocab_size, seq_len)
-                    y_pred = self.model(x).permute(0, 2, 1)
-                    # only incur loss on last half of the sequence
-                    y_pred = y_pred[:, :, -seq_len//2:]
-                    y = y[:, -seq_len//2:]
-                    l = loss(y_pred, y)
-                    test_loss += l.item()
+                with tqdm(enumerate(test), total=len(test)) as pbar:
+                # for x, y in tqdm(test):
+                    for i, (x, y) in pbar:
+                        x = x.to(self.device)  # (batch_size, seq_len)
+                        y = y.to(self.device)  # (batch_size, seq_len)
+                        # (batch_size, vocab_size, seq_len)
+                        y_pred = self.model(x).permute(0, 2, 1)
+                        # only incur loss on last half of the sequence
+                        # y_pred = y_pred[:, :, -seq_len//2:]
+                        # y = y[:, -seq_len//2:]
+                        l = loss(y_pred, y)
+                        test_loss += l.item()
+                        pbar.set_postfix({"Test loss": test_loss / (i + 1)})
 
-                    if debug and not one_shown:
-                        print("In test loop")
-                        print("x:", x.shape, x.dtype)
-                        print(self.tokenizer.detokenize(
-                            x[0].tolist()))  # (seq_len)
-                        print("y:", y.shape, y.dtype)
-                        print(self.tokenizer.detokenize(
-                            y[0].tolist()))  # (seq_len)
-                        # report top 5 predictions
-                        print("y_pred:", y_pred.shape, y_pred.dtype)
-                        top_5 = torch.topk(y_pred[0], 5, dim=0)  # (5, seq_len)
-                        for i in range(5):
+
+                        if debug and not one_shown:
+                            print("In test loop")
+                            print("x:", x.shape, x.dtype)
                             print(self.tokenizer.detokenize(
-                                top_5.indices[i].tolist()))
-                            # print(top_5.values[i])
-                        one_shown = True
+                                x[0].tolist()))  # (seq_len)
+                            print("y:", y.shape, y.dtype)
+                            print(self.tokenizer.detokenize(
+                                y[0].tolist()))  # (seq_len)
+                            # report top 5 predictions
+                            print("y_pred:", y_pred.shape, y_pred.dtype)
+                            top_5 = torch.topk(y_pred[0], 5, dim=0)  # (5, seq_len)
+                            for i in range(5):
+                                print(self.tokenizer.detokenize(
+                                    top_5.indices[i].tolist()))
+                                # print(top_5.values[i])
+                            one_shown = True
             print(f"Test loss: {test_loss / len(test)}")
 
     def generate(self, seed: str, length: int = 100) -> str:
@@ -138,6 +154,8 @@ class Manticore:
                 # Sample probability distribution
                 result = torch.multinomial(
                     torch.exp(y_pred.squeeze(1)), 1).to(self.device)
+                # Use the most probable token
+                # result = torch.argmax(y_pred, dim=2).to(self.device)
 
                 # print(tokenized_seed.shape, result.shape)
 
@@ -170,8 +188,9 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
-    EXPERIMENT = 1
-    LOAD_SAVED = False
+    EXPERIMENT = 2
+    LOAD_SAVED = True
+    LOAD_EPOCH = 0
 
     if EXPERIMENT == 1:
         corpus = open("./corpus/communistmanifesto.txt", "rb").read()
@@ -185,8 +204,10 @@ if __name__ == "__main__":
         SEQ_LEN = 120
         LAYERS = 2
         BATCH_SIZE = 100
-        EPOCHS = 4
+        EPOCHS = 30 # Uhhhh
         DEBUG = False
+
+        SAVE_PER_EPOCH = False
 
         SAVE_NAME = "communist_manticore_smol"
     elif EXPERIMENT == 2:
@@ -207,6 +228,7 @@ if __name__ == "__main__":
         BATCH_SIZE = 1000
         EPOCHS = 10
         DEBUG = False
+        SAVE_PER_EPOCH = True
 
         SAVE_NAME = "mahabharata_manticore_smol"
     elif EXPERIMENT == 3:
@@ -228,6 +250,7 @@ if __name__ == "__main__":
         BATCH_SIZE = 100
         EPOCHS = 10
         DEBUG = False
+        SAVE_PER_EPOCH = True
 
         SAVE_NAME = "mahabharata_manticore_chungus"
 
@@ -247,11 +270,16 @@ if __name__ == "__main__":
     manticore = Manticore(model, tokenizer, device=device)
 
     if LOAD_SAVED:
-        manticore.load(SAVE_NAME)
+        manticore.load(SAVE_NAME + "_epoch" + str(LOAD_EPOCH))
+        manticore.train(train_corpus, test_corpus,
+                        seq_len=SEQ_LEN, batch_size=BATCH_SIZE, epochs=EPOCHS, debug=DEBUG, save_per_epoch=SAVE_PER_EPOCH,
+                        save_name=SAVE_NAME, start_epoch=LOAD_EPOCH + 1)
     else:
         manticore.train(train_corpus, test_corpus,
-                        seq_len=SEQ_LEN, batch_size=BATCH_SIZE, epochs=EPOCHS, debug=DEBUG)
+                        seq_len=SEQ_LEN, batch_size=BATCH_SIZE, epochs=EPOCHS, debug=DEBUG, save_per_epoch=SAVE_PER_EPOCH,
+                        save_name=SAVE_NAME)
 
         manticore.save(SAVE_NAME)
     print(manticore.generate(
-        "A spectre is haunting Europe--the spectre of Communism.", 100))
+        r"""II.  It is high time that Communists should openly, in the
+face of the whole world, publish their views, """, 1000))
