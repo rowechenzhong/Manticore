@@ -210,7 +210,7 @@ class Tokenizer:
 
         return tokenized_corpus
 
-    def detokenize(self, corpus: List[int]) -> str:
+    def detokenize(self, corpus: List[int], debug: bool = False) -> str:
         """
         Detokenize the corpus.
 
@@ -222,8 +222,9 @@ class Tokenizer:
         """
         detokenized_corpus = ""
         for i in range(len(corpus)):
-            if i % 1000 == 0:
+            if debug and i % 1000 == 0:
                 print(f"Detokenizing: {i} of {len(corpus)}", end="\r")
             detokenized_corpus += self.vocab_list[corpus[i]]
-        print()
+        if debug:
+            print()
         return detokenized_corpus
