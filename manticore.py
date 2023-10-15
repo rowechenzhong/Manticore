@@ -189,7 +189,7 @@ class Manticore:
                     nxtop.append((pr * best.values[0, idx], torch.cat((tks, best.indices[:, idx:idx+1]), dim=1).to(self.device)))
 
             # Filter top array
-            top = sorted(nxtop, reverse=True)[:breadth]
+            top = sorted(nxtop, key=lambda item: item[0].item(), reverse=True)[:breadth]
 
         # Get the best path
         print(self.tokenizer.detokenize(top[0][1].squeeze(0).tolist()), end='')
@@ -197,7 +197,7 @@ class Manticore:
         return torch.cat((tokenized_seed, top[0][1]), dim=1).to(self.device)
 
 
-    def generate_beamsearch(self, seed: str, length: int = 30, breadth: int = 10, depth: int = 10) -> str:
+    def generate_beamsearch(self, seed: str, length: int = 30, breadth: int = 50, depth: int = 10) -> str:
         """
         Use Beam Search to generate a string of a given length from a given seed.
         - breadth: width of beam search to use
@@ -340,8 +340,8 @@ if __name__ == "__main__":
         manticore.load(SAVE_NAME + "_epoch" + str(LOAD_EPOCH))
         manticore.chat_endlessly()
         print(manticore.generate(
-            """I feel impelled to speak today in a language that in a sense is new,
-            one which I, who have spent so much of my life in the military profession,""",
+            """"The holy one said, 'O thou of great wisdom, I desire to hear in detail, O thou that art conversant with the 
+duties of the science of Profit, and thou art the foremost of all wielders of """,
             100)
         )
         manticore.train(train_corpus, test_corpus,
