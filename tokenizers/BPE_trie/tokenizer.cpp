@@ -19,14 +19,14 @@ map<string, int> reverse_initial_vocab;
 vector<string> vocab;
 
 #define NUM_FILES 10 // Number of corpus docs to use
-#define MAX_TOKEN 100 // maximum token length
+#define MAX_TOKEN 400 // maximum token length
 #define LOW_MERGE_CUTOFF 0 // minimum frequency to merge
 #define CORPUS_DELIMITER char(30) // delimiter between tokens
 #define OUTPUT_DELIMITER char(31) // delimiter between tokens
 #define ll long long
 
 #define CORPUS_DIR "./corpus/falcon/train/"
-#define VOCAB_OUTPUT "./tokenizers/tokenizer_outputs/peregrine_largebatch.txt"
+#define VOCAB_OUTPUT "./tokenizers/tokenizer_outputs/peregrine_40k.txt"
 
 int GLOBAL_TOKEN_ID;
 map<pair<int, int>, int> MERGE_EVENTS;
@@ -143,7 +143,7 @@ vector<int> to_ints(string& corpus, map<string, int>& reverse_initial_vocab) {
 
 void train(vector<int>& corpus, unsigned int vocab_size) {
     while (vocab.size() < vocab_size) {
-        int batch_size = min((int)(vocab_size - vocab.size()), 200);
+        int batch_size = min((int)(vocab_size - vocab.size()), 400);
         vector<pair<int, int>> max_frequency_length_queue(batch_size, {0, 0});
         vector<pair<int, int>> max_i_j_queue(batch_size, {-1, -1});
         cout << "Current vocab size=" << vocab.size() << " current corpus size=" << corpus.size() << "                        \r";
@@ -289,7 +289,7 @@ void dump_tokenization_to_file(string tokenized_file, vector<int> tokens) {
 
 int main() {
 
-    int vocab_size = 10000;
+    int vocab_size = 40000;
 
     // Load the corpus
     string input_corpus;
@@ -297,7 +297,7 @@ int main() {
 
     for (int i = 0; i < NUM_FILES; i++) {
         ifstream fin(CORPUS_DIR + to_string(i) + ".txt", ios::binary);
-        buf << fin.rdbuf() << CORPUS_DELIMITER;
+        buf << fin.rdbuf();
         fin.close();
     }
 

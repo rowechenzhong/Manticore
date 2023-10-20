@@ -18460,4 +18460,4 @@ Part II
 Registration is FREE and EASY.
 by John Casey
 Jun 2002 Issue of Wine Business Monthly
-In the 1970s, very low concentrations of a group of chemical compounds known as "chloro-anisoles" were identified as being responsible for musty/mouldy taints in a number of different foods and packaging materials. The most potent of these compounds is 2,4,6 tri-chloro-anisole, usually referred to as TCA. Other members of the group are the mono-, di-, tetra-, and penta-chloro-anisoles. In the early 1980s, TCA at extraordinarily low concentrations, (30 - 200 parts per trillion) was identified:
+In the 1970s, very low concentrations of a group of chemical compounds known as "chloro-anisoles" were identified as being responsible for musty/mouldy taints in a number of different foods and packaging materials. The most potent of these compounds is 2,4,6 tri-chloro-anisole, usually referred to as TCA. Other members of the group are the mono-, di-, tetra-, and penta-chloro-anisoles. In the early 1980s, TCA at extraordinarily low concentrations, (30 - 200 parts per trillion) was identified:

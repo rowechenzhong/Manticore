@@ -18234,4 +18234,4 @@ I echo that!
 Major suggestion:I wish we could use FriendFeed to follow friends through other services. For example, I wish I could see all my twitter updates through Friendfeed. I wish I could see my Facebook updates through Friendfeed.Then, my "friend feed" will represent my one, single point of entry to follow all of my friends on my social networks.
 test message - please ignoresent from: fav.or.it [FID29563]
 Yup, friendfeed pages do seem to load pretty fast! ... but not at the 50 ms mark. My fasterfox timer is telling me 0.7 - 3 seconds for many popular profiles with lots of data.For empty profiles, I get 0.36 sec.
-PS: a speedtest.net ping to San Francisco took 112 ms and ont to San Jose took 52 ms.
+PS: a speedtest.net ping to San Francisco took 112 ms and ont to San Jose took 52 ms.

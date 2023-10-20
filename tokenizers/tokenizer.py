@@ -1,6 +1,7 @@
 from typing import List, Tuple, Dict
 
-MAX_TOKEN = 10
+MAX_TOKEN = 100
+TOKEN_DELIMITER = chr(31)
 
 
 class TrieNode:
@@ -96,62 +97,22 @@ class Tokenizer:
     def __len__(self):
         return len(self.vocab_list)
 
-    def load(self, vocab_file, delimiter="<BRUH>", debug=False):
+    def load(self, vocab_file, delimiter=TOKEN_DELIMITER, debug=False):
         self.vocab_list = []
-        # lol whoops, add all of the tokens manually
-        for i in range(256):
-            s = chr(i)
-            self.vocab_list.append(s)
-        with open(vocab_file, "rb") as f:
+        with open(vocab_file, encoding="utf-8") as f:
             # read f as a list of bytes
             all_text = f.read()
-            # convert each individual byte to a string
-            all_text = [chr(i) for i in all_text]
-            # join all the strings together
-            all_text = "".join(all_text)
-            for token in all_text.split(delimiter):
-                if len(token) <= 1:
-                    continue  # we just added the single characters
-                self.vocab_list.append(token)
-                self.max_token_length = max(self.max_token_length, len(token))
+            all_text = list(filter(lambda x: len(x) > 0, all_text.split(delimiter)))
         if debug:
-            length_data = [0 for i in range(self.max_token_length + 1)]
+            length_data = [0 for i in range(100)]
             for token in self.vocab_list:
                 length_data[len(token)] += 1
 
             print("Loaded vocab of size ", len(self.vocab_list))
-            print("Max token length is ", self.max_token_length)
             for i in range(self.max_token_length + 1):
                 print(i, length_data[i])
 
         self.vocab = TrieNode.create_vocab_trie(self.vocab_list)
-
-    def pre_tokenize(self, corpus: str, reverse_initial_vocab: Dict[str, int]) -> Dict[List[int], int]:
-        """
-        Perform pre-tokenization.
-
-        Args:
-            corpus (str): Input corpus.
-            reverse_initial_vocab (Dict[str, int]): Reverse initial vocabulary mapping.
-
-        Returns:
-            Dict[List[int], int]: Map of distinct words to their frequency.
-        """
-        frequencies = {}
-        idx = 0
-        while idx < len(corpus):
-            if idx % 1000 == 0:
-                print(
-                    f"Pre-tokenizing: {idx} of {len(corpus)} frequency size is {len(frequencies)}", end="\r")
-            j = idx
-            while j < len(corpus) and corpus[j] not in [' ', '\n', '\t']:
-                j += 1
-            bytes = [reverse_initial_vocab.get(
-                c, reverse_initial_vocab["<unk>"]) for c in corpus[idx:j]]
-            frequencies[tuple(bytes)] = frequencies.get(tuple(bytes), 0) + 1
-            idx = j + 1
-        print()
-        return frequencies
 
     def tokenize(self, corpus: str, debug: bool = False) -> List[int]:
         """
