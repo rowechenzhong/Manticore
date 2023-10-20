@@ -18,9 +18,14 @@ map<string, int> reverse_initial_vocab;
 // vector<int> initial_vocab_lengths;
 vector<string> vocab;
 
+#define NUM_FILES 1 // Number of corpus docs to use
 #define MAX_TOKEN 10 // maximum token length
 #define LOW_MERGE_CUTOFF 0 // minimum frequency to merge
+#define DELIMITER 30 // delimiter between tokens
 #define ll long long
+
+#define CORPUS_DIR "./corpus/falcon/train/"
+#define VOCAB_OUTPUT "./tokenizers/tokenizer_outputs/falcon.txt"
 
 int GLOBAL_TOKEN_ID;
 map<pair<int, int>, int> MERGE_EVENTS;
@@ -246,46 +251,35 @@ void cout_dump() {
 }
 
 void dump_vocab_to_file(string vocab_file) {
-    ofstream fout(vocab_file);
+    ofstream fout(vocab_file, ios::binary);
     for (string token : vocab) {
         assert(token.size() <= MAX_TOKEN);
-        fout << "<BRUH>" << token;
+        fout << token << DELIMITER;
     }
     fout.close();
 }
 
 void dump_tokenization_to_file(string tokenized_file, vector<int> tokens) {
-    ofstream fout(tokenized_file);
+    ofstream fout(tokenized_file, ios::binary);
     for (int i : tokens) fout << i << " ";
     fout << endl;
     fout.close();
 }
 
 int main() {
-    // Maximum allowable number of tokens
-    int vocab_size;
+
+    int vocab_size = 10000;
 
     // Load the corpus
     string input_corpus;
-
-    string WHICH_CORPUS = "mahabharata";
     stringstream buf;
-    
-    if (WHICH_CORPUS == "communistmanifesto") {
-        ifstream fin1("..\\..\\corpus\\communistmanifesto.txt");
-        buf << fin1.rdbuf();
-        fin1.close();
-        vocab_size = 1000;
-    } else if (WHICH_CORPUS == "mahabharata") {
-        ifstream fin1("..\\..\\corpus\\mahabharata1.txt");
-        ifstream fin2("..\\..\\corpus\\mahabharata2.txt");
-        ifstream fin3("..\\..\\corpus\\mahabharata3.txt");
-        buf << fin1.rdbuf() << fin2.rdbuf() << fin3.rdbuf();
-        fin1.close();
-        fin2.close();
-        fin3.close();
-        vocab_size = 4000;
+
+    for (int i = 0; i < NUM_FILES; i++) {
+        ifstream fin(CORPUS_DIR + to_string(i) + ".txt", ios::binary);
+        buf << fin.rdbuf() << DELIMITER;
+        fin.close();
     }
+
     input_corpus = buf.str();
     
     // print corpus length
@@ -296,42 +290,9 @@ int main() {
     vocab = initial_vocab;
     map<vector<int>, int> frequencies = pre_tokenize(input_corpus, reverse_initial_vocab);
     train(frequencies, vocab_size);
-    // cout << "HEY" << endl;
 
-    // "..//tokenizer_outputs//communistmanifesto_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt"
-    string savefile = "..//tokenizer_outputs//" + WHICH_CORPUS + "_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt";
-    dump_vocab_to_file(savefile);
-    cout << "Saved tokens to file: " << savefile << endl;
-
-    // Tokenize text
-    cout << "Beginning tokenize" << endl;
-    TrieNode* vocab_trie = create_vocab_trie();
-    vector<int> ints_corpus = tokenize(input_corpus, vocab_trie);
-    cout << "Saving tokenization" << endl;
-    dump_tokenization_to_file("mahabharata.tkz", ints_corpus);
-
-    // Tests
-    string output_corpus = detokenize(ints_corpus);
-    cout << "Compression ratio:" << (double)ints_corpus.size() / (double)input_corpus.size() << endl;
-
-    assert (input_corpus == output_corpus);
-
-    // Debugging tests:
-    if(true){        
-        vector<string> tests;
-        tests.push_back("Hello everyone! This is a test. I hope it works.");
-        tests.push_back("x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}");
-        for(string test : tests){
-            vector<int> ints = tokenize(test, vocab_trie);
-            string output = detokenize(ints);
-            cout << "Input: " << test << endl;
-            cout << "Output: " << output << endl;
-            cout << "Compression ratio: " << (double)ints.size() / (double)test.size() << endl;
-            cout << endl;
-            assert (test == output);
-        }
-    }    
-
+    dump_vocab_to_file(VOCAB_OUTPUT);
+    cout << "Saved tokens to file: " << VOCAB_OUTPUT << endl;
 
     // print the distribution of token lengths.
     vector<int> token_lengths(MAX_TOKEN + 1, 0);
