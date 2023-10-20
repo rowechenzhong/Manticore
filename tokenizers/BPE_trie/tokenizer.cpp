@@ -18,9 +18,15 @@ map<string, int> reverse_initial_vocab;
 // vector<int> initial_vocab_lengths;
 vector<string> vocab;
 
-#define MAX_TOKEN 10 // maximum token length
+#define NUM_FILES 10 // Number of corpus docs to use
+#define MAX_TOKEN 400 // maximum token length
 #define LOW_MERGE_CUTOFF 0 // minimum frequency to merge
+#define CORPUS_DELIMITER char(30) // delimiter between tokens
+#define OUTPUT_DELIMITER char(31) // delimiter between tokens
 #define ll long long
+
+#define CORPUS_DIR "./corpus/falcon/train/"
+#define VOCAB_OUTPUT "./tokenizers/tokenizer_outputs/peregrine_40k.txt"
 
 int GLOBAL_TOKEN_ID;
 map<pair<int, int>, int> MERGE_EVENTS;
@@ -116,64 +122,84 @@ map<vector<int>, int> pre_tokenize(string& corpus, map<string, int> reverse_init
     return frequencies;
 }
 
-void train(map<vector<int>, int>& corpus, unsigned int vocab_size) {
-    /**
-    * Optimize BPE tokenization naively.
-    */
-    GLOBAL_TOKEN_ID = initial_vocab.size();
-    // cout << "HEY" << endl;
+vector<int> to_ints(string& corpus, map<string, int>& reverse_initial_vocab) {
+    vector<int> res;
+    int unk_count = 0;
+    for (char c : corpus) {
+        string s(1, c);
+        if (reverse_initial_vocab.find(s) != reverse_initial_vocab.end()) {
+            res.push_back(reverse_initial_vocab[s]);
+        } else {
+            res.push_back(reverse_initial_vocab["<unk>"]);
+            unk_count += 1;
+        }
+    }
+    // print unk count
+    cout << "Unk count: " << unk_count << endl;
+    cout << "Unk ratio: " << (double)unk_count / (double)corpus.size() << endl;
+    return res;
+}
 
-    while (GLOBAL_TOKEN_ID < vocab_size) {
-        int best_x = -1;
-        int best_y = -1;
-        int best_score = -1;
-        // test: the score function is now freq * (vocab[x].size() + vocab[y].size() - 1)
-        // int longest_size = 0;
-        for (auto& p : corpus) {
-            // cout << "p = " << p.first.size() << endl;
-            vector<int> word = p.first;
-            int freq = p.second;
-            for (int i = 0; i + 1 < word.size(); ++i) {
-                int x = word[i];
-                int y = word[i + 1];
-                if (vocab[x].size() + vocab[y].size() > MAX_TOKEN) continue;
-                int score = freq * (vocab[x].size() + vocab[y].size() - 1);
-                // if (freq > best_freq || (freq == best_freq && vocab[x].size() + vocab[y].size() > longest_size)) {
-                if (score > best_score) {
-                    best_score = score;
-                    best_x = x;
-                    best_y = y;
-                    // longest_size = vocab[x].size() + vocab[y].size();
+
+void train(vector<int>& corpus, unsigned int vocab_size) {
+    while (vocab.size() < vocab_size) {
+        int batch_size = min((int)(vocab_size - vocab.size()), 400);
+        vector<pair<int, int>> max_frequency_length_queue(batch_size, {0, 0});
+        vector<pair<int, int>> max_i_j_queue(batch_size, {-1, -1});
+        cout << "Current vocab size=" << vocab.size() << " current corpus size=" << corpus.size() << "                        \r";
+        unordered_map<int, unordered_map<int, int>> frequencies;
+        for (size_t i = 0; i < corpus.size() - 1; ++i) {
+            pair<int, int> i_j = {corpus[i], corpus[i+1]};
+            pair<int, int> info = {++frequencies[i_j.first][i_j.second], - vocab[i_j.first].size() - vocab[i_j.second].size()};
+            for (int j = 0; j < max_frequency_length_queue.size(); j++) {
+                if (i_j == max_i_j_queue[j]) {
+                    max_frequency_length_queue.erase(max_frequency_length_queue.begin() + j);
+                    max_i_j_queue.erase(max_i_j_queue.begin() + j);
+                    break;
                 }
             }
-        }
-        // cout << "Best merge: " << vocab[best_x] << " " << vocab[best_y] << " " << best_freq << endl;
-        if (best_score < LOW_MERGE_CUTOFF) break;
-        if (best_x == -1) break;
-        string new_token = vocab[best_x] + vocab[best_y];
-        vocab.push_back(new_token);
-
-        // Update corpus
-        map<vector<int>, int> new_corpus;
-        for (auto& p : corpus) {
-            vector<int> word = p.first;
-            int freq = p.second;
-            vector<int> new_word;
-            int idx = 0;
-            while (idx < word.size()) {
-                if (idx + 1 < word.size() && (vocab[word[idx]] + vocab[word[idx + 1]] == new_token)) {
-                    new_word.push_back(GLOBAL_TOKEN_ID);
-                    idx += 2;
-                } else {
-                    new_word.push_back(word[idx]);
-                    idx += 1;
+            for (int j = 0; j < max_i_j_queue.size(); j++) {
+                if (info > max_frequency_length_queue[j]) {
+                    max_frequency_length_queue.insert(max_frequency_length_queue.begin() + j, info);
+                    max_i_j_queue.insert(max_i_j_queue.begin() + j, i_j);
+                    if (max_i_j_queue.size() > batch_size) {
+                        max_frequency_length_queue.pop_back();
+                        max_i_j_queue.pop_back();
+                    }
+                    break;
                 }
             }
-            new_corpus[new_word] += freq;
+            if (max_i_j_queue.size() != batch_size) {
+                max_frequency_length_queue.push_back(info);
+                max_i_j_queue.push_back(i_j);
+            }
         }
-        GLOBAL_TOKEN_ID += 1;
+        int ouch = vocab.size();
+        for (auto i_j : max_i_j_queue)
+            vocab.push_back(vocab[i_j.first] + vocab[i_j.second]);
+
+        vector<int> new_corpus;
+        size_t ptr = 0;
+
+        while (ptr < corpus.size()) {
+            if (ptr < corpus.size() - 1) {
+                for (int j = 0; j < batch_size; j++) { 
+                    pair<int, int> i_j = max_i_j_queue[j]; 
+                    if (corpus[ptr] == i_j.first && corpus[ptr + 1] == i_j.second) {
+                        new_corpus.push_back(ouch + j);
+                        ptr += 2; 
+                        goto end;
+                    }
+                }
+                new_corpus.push_back(corpus[ptr]);
+                ptr += 1;
+            } else {
+                new_corpus.push_back(corpus[ptr]);
+                ptr += 1;
+            }
+            end:;
+        }
         corpus = new_corpus;
-        cout << "Training: " << GLOBAL_TOKEN_ID << " of " << vocab_size << " tokens,score = " << best_score << " new_token = " << new_token << "                   \r";
     }
     cout << endl;
 }
@@ -246,46 +272,35 @@ void cout_dump() {
 }
 
 void dump_vocab_to_file(string vocab_file) {
-    ofstream fout(vocab_file);
+    ofstream fout(vocab_file, ios::binary);
     for (string token : vocab) {
         assert(token.size() <= MAX_TOKEN);
-        fout << "<BRUH>" << token;
+        fout << token << OUTPUT_DELIMITER;
     }
     fout.close();
 }
 
 void dump_tokenization_to_file(string tokenized_file, vector<int> tokens) {
-    ofstream fout(tokenized_file);
+    ofstream fout(tokenized_file, ios::binary);
     for (int i : tokens) fout << i << " ";
     fout << endl;
     fout.close();
 }
 
 int main() {
-    // Maximum allowable number of tokens
-    int vocab_size;
+
+    int vocab_size = 40000;
 
     // Load the corpus
     string input_corpus;
-
-    string WHICH_CORPUS = "mahabharata";
     stringstream buf;
-    
-    if (WHICH_CORPUS == "communistmanifesto") {
-        ifstream fin1("..\\..\\corpus\\communistmanifesto.txt");
-        buf << fin1.rdbuf();
-        fin1.close();
-        vocab_size = 1000;
-    } else if (WHICH_CORPUS == "mahabharata") {
-        ifstream fin1("..\\..\\corpus\\mahabharata1.txt");
-        ifstream fin2("..\\..\\corpus\\mahabharata2.txt");
-        ifstream fin3("..\\..\\corpus\\mahabharata3.txt");
-        buf << fin1.rdbuf() << fin2.rdbuf() << fin3.rdbuf();
-        fin1.close();
-        fin2.close();
-        fin3.close();
-        vocab_size = 4000;
+
+    for (int i = 0; i < NUM_FILES; i++) {
+        ifstream fin(CORPUS_DIR + to_string(i) + ".txt", ios::binary);
+        buf << fin.rdbuf();
+        fin.close();
     }
+
     input_corpus = buf.str();
     
     // print corpus length
@@ -294,44 +309,12 @@ int main() {
     // Training
     tie(initial_vocab, reverse_initial_vocab) = generate_initial_vocab();
     vocab = initial_vocab;
-    map<vector<int>, int> frequencies = pre_tokenize(input_corpus, reverse_initial_vocab);
-    train(frequencies, vocab_size);
-    // cout << "HEY" << endl;
+    // map<vector<int>, int> frequencies = pre_tokenize(input_corpus, reverse_initial_vocab);
+    vector<int> ints_corpus = to_ints(input_corpus, reverse_initial_vocab);
+    train(ints_corpus, vocab_size);
 
-    // "..//tokenizer_outputs//communistmanifesto_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt"
-    string savefile = "..//tokenizer_outputs//" + WHICH_CORPUS + "_size" + to_string(vocab_size) + "_cap" + to_string(MAX_TOKEN) + ".txt";
-    dump_vocab_to_file(savefile);
-    cout << "Saved tokens to file: " << savefile << endl;
-
-    // Tokenize text
-    cout << "Beginning tokenize" << endl;
-    TrieNode* vocab_trie = create_vocab_trie();
-    vector<int> ints_corpus = tokenize(input_corpus, vocab_trie);
-    cout << "Saving tokenization" << endl;
-    dump_tokenization_to_file("mahabharata.tkz", ints_corpus);
-
-    // Tests
-    string output_corpus = detokenize(ints_corpus);
-    cout << "Compression ratio:" << (double)ints_corpus.size() / (double)input_corpus.size() << endl;
-
-    assert (input_corpus == output_corpus);
-
-    // Debugging tests:
-    if(true){        
-        vector<string> tests;
-        tests.push_back("Hello everyone! This is a test. I hope it works.");
-        tests.push_back("x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}");
-        for(string test : tests){
-            vector<int> ints = tokenize(test, vocab_trie);
-            string output = detokenize(ints);
-            cout << "Input: " << test << endl;
-            cout << "Output: " << output << endl;
-            cout << "Compression ratio: " << (double)ints.size() / (double)test.size() << endl;
-            cout << endl;
-            assert (test == output);
-        }
-    }    
-
+    dump_vocab_to_file(VOCAB_OUTPUT);
+    cout << "Saved tokens to file: " << VOCAB_OUTPUT << endl;
 
     // print the distribution of token lengths.
     vector<int> token_lengths(MAX_TOKEN + 1, 0);
