@@ -14,6 +14,7 @@ DELIMITER = chr(30)
 SHUFFLE_SEED = 42
 TEST_FREQUENCY = 5
 
+
 class FalconStreamer:
     def __init__(self, mode='stream', split='train'):
         """
@@ -21,17 +22,18 @@ class FalconStreamer:
         """
         if mode not in ['stream', 'write']:
             raise ValueError("Mode must be 'stream' or 'write'")
-        
+
         if split not in ['train', 'test']:
             raise ValueError("Split must be 'train' or 'test'")
-        
+
         self.mode = mode
         self.split = split
 
         # Load and skip the dataset
         print("Loading dataset...")
 
-        self.dataset = load_dataset(FALCON_DATASET, split='train', streaming=True)
+        self.dataset = load_dataset(
+            FALCON_DATASET, split='train', streaming=True)
 
         # Very important! Shuffle the dataset
         print("Shuffling...")
@@ -63,7 +65,7 @@ class FalconStreamer:
         except StopIteration:
             raise StopIteration
 
-    def get_content(self, chunk_number: int, stream, skip: bool = False): 
+    def get_content(self, chunk_number: int, stream, skip: bool = False):
         """
         Save the results of exactly one dataset and move the stream forward
         """
@@ -75,7 +77,7 @@ class FalconStreamer:
                 to_write.append(next(stream)['content'])
             except StopIteration:
                 break
-        
+
         if skip:
             return
 
@@ -86,7 +88,6 @@ class FalconStreamer:
         # Save the content
         with open(CORPUS_DIR + self.split + "/" + str(chunk_number) + ".txt", "w", encoding='utf-8') as f:
             f.write(to_write)
-        
 
     def stream_content(self, start_chunk: int, end_chunk: int):
         """
@@ -103,13 +104,14 @@ class FalconStreamer:
             if self.split == 'train':
                 if chunk_number % TEST_FREQUENCY != 0:
                     self.get_content(chunk_number, self.stream)
-                else: 
+                else:
                     self.get_content(chunk_number, self.stream, skip=True)
             elif self.split == 'test':
                 if chunk_number % TEST_FREQUENCY == 0:
                     self.get_content(chunk_number, self.stream)
-                else: 
+                else:
                     self.get_content(chunk_number, self.stream, skip=True)
+
 
 class BatchStreamer:
     def __init__(self, stream: FalconStreamer, tokenizer: tokenizer, batch_size: int = 64):
@@ -119,7 +121,7 @@ class BatchStreamer:
         self.stream = stream
         self.tokenizer = tokenizer
         self.batch_size = batch_size
-    
+
     def __iter__(self):
         return self
 
@@ -129,7 +131,7 @@ class BatchStreamer:
         """
         # for rowechen, because i am lost
 
-        
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Manticore Data Streamer')
     parser.add_argument('--train', action='store_true', help='Get train data')
@@ -139,8 +141,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.train:
-        FalconStreamer(mode='write', split='train').stream_content(start_chunk=args.ss, end_chunk=args.to)
+        FalconStreamer(mode='write', split='train').stream_content(
+            start_chunk=args.ss, end_chunk=args.to)
     elif args.test:
-        FalconStreamer(mode='write', split='test').stream_content(start_chunk=args.ss, end_chunk=args.to)
+        FalconStreamer(mode='write', split='test').stream_content(
+            start_chunk=args.ss, end_chunk=args.to)
     else:
         parser.print_help()

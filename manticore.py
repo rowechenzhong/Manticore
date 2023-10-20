@@ -1,34 +1,32 @@
 from model import Model
 from tokenizers.tokenizer import Tokenizer
-from typing import List
-from torch.utils.data import Dataset
 import torch
-from utils import SubstringDataset, print_parameters
-from embedding import Embedding, UnEmbedding
+from utils import SubstringDataset
 from tqdm import tqdm
 import sys
+
 # Path: manticore.py
 
 
 class Manticore:
     """
-    This class comprises a model and tokenizer, 
+    The Manticore class is a wrapper for the model and tokenizer.
     """
 
     def __init__(self, model: Model, tokenizer: Tokenizer, device: str = "cpu") -> None:
-        self.model = model.to(device)
-        self.tokenizer = tokenizer
-        self.device = device
+        self.model: Model = model.to(device)
+        self.tokenizer: Tokenizer = tokenizer
+        self.device: str = device
 
     def train(self, train_corpus: str,
-                test_corpus: str,
-                seq_len: int = 100,
-                batch_size: int = 100,
-                epochs: int = 10,
-                debug: bool = False,
-                save_per_epoch:bool = False,
-                save_name:str = False,
-                start_epoch:int = 0) -> None:
+              test_corpus: str,
+              seq_len: int = 100,
+              batch_size: int = 100,
+              epochs: int = 10,
+              debug: bool = False,
+              save_per_epoch: bool = False,
+              save_name: str = False,
+              start_epoch: int = 0) -> None:
         """
         Train the model on a corpus, which is just a list.
         The model will be trained to predict the next token,
@@ -92,19 +90,20 @@ class Manticore:
                     optimizer.step()
 
                     # write training loss to tqdm
-                    pbar.set_postfix({"Training loss": trainings_loss / (i + 1)})
+                    pbar.set_postfix(
+                        {"Training loss": trainings_loss / (i + 1)})
 
             print(f"Training loss: {trainings_loss / len(train)}")
 
             if save_per_epoch:
-                self.save(SAVE_NAME + "_epoch" + str(epoch))
+                self.save(save_name + "_epoch" + str(epoch))
 
             test_loss = 0
             self.model.eval()
             one_shown = False
             with torch.no_grad():
                 with tqdm(enumerate(test), total=len(test)) as pbar:
-                # for x, y in tqdm(test):
+                    # for x, y in tqdm(test):
                     for i, (x, y) in pbar:
                         x = x.to(self.device)  # (batch_size, seq_len)
                         y = y.to(self.device)  # (batch_size, seq_len)
@@ -117,7 +116,6 @@ class Manticore:
                         test_loss += l.item()
                         pbar.set_postfix({"Test loss": test_loss / (i + 1)})
 
-
                         if debug and not one_shown:
                             print("In test loop")
                             print("x:", x.shape, x.dtype)
@@ -128,7 +126,8 @@ class Manticore:
                                 y[0].tolist()))  # (seq_len)
                             # report top 5 predictions
                             print("y_pred:", y_pred.shape, y_pred.dtype)
-                            top_5 = torch.topk(y_pred[0], 5, dim=0)  # (5, seq_len)
+                            top_5 = torch.topk(
+                                y_pred[0], 5, dim=0)  # (5, seq_len)
                             for i in range(5):
                                 print(self.tokenizer.detokenize(
                                     top_5.indices[i].tolist()))
@@ -155,64 +154,9 @@ class Manticore:
 
                 tokenized_seed = torch.cat(
                     (tokenized_seed, result), dim=1).to(self.device)
-                
+
                 print(self.tokenizer.vocab_list[tokenized_seed[0, -1]], end='')
                 sys.stdout.flush()
-        tokenized_seed = tokenized_seed.squeeze(0).tolist()
-        return self.tokenizer.detokenize(tokenized_seed)
-    
-
-    def generate_beamsearch_once(self, tokenized_seed: torch.Tensor, breadth: int, depth: int) -> torch.Tensor:
-        """
-        Beam search helper. Generates one token with parameters as described below.
-        self.model should be in eval() mode, and this should be in a torch.no_grad() environment.
-        """
-        # Keeping track of the top results
-        top = [(torch.tensor(1.0, dtype=torch.float64), torch.tensor([[]], dtype=torch.int64))]
-        for _ in range(depth):
-            nxtop = list()
-            for pr, tks in top:
-                # Generate this branch's tokens
-                cur_seed = torch.cat((tokenized_seed, tks), dim=1).to(self.device)
-
-                # Forward pass!
-                y_pred = self.model(cur_seed)
-
-                # Sample probability distribution
-                probs = torch.exp(y_pred[:, -1, :].squeeze(1))
-
-                # Take the top few indices
-                best = torch.topk(probs, breadth)
-
-                # Add the new paths
-                for idx in range(breadth):
-                    nxtop.append((pr * best.values[0, idx], torch.cat((tks, best.indices[:, idx:idx+1]), dim=1).to(self.device)))
-
-            # Filter top array
-            top = sorted(nxtop, key=lambda item: item[0].item(), reverse=True)[:breadth]
-
-        # Get the best path
-        print(self.tokenizer.detokenize(top[0][1].squeeze(0).tolist()), end='')
-        sys.stdout.flush()
-        return torch.cat((tokenized_seed, top[0][1]), dim=1).to(self.device)
-
-
-    def generate_beamsearch(self, seed: str, length: int = 30, breadth: int = 50, depth: int = 10) -> str:
-        """
-        Use Beam Search to generate a string of a given length from a given seed.
-        - breadth: width of beam search to use
-        - depth: how deep to search
-        """
-        tokenized_seed: torch.Tensor = torch.tensor(
-            self.tokenizer.tokenize(seed)).unsqueeze(0).to(self.device)  # (1, seq_len)
-        
-
-        self.model.eval()
-        with torch.no_grad():
-            for _ in range(length):
-                tokenized_seed = self.generate_beamsearch_once(tokenized_seed, breadth, depth)
-                tokenized_seed = tokenized_seed[:, -100:]
-
         tokenized_seed = tokenized_seed.squeeze(0).tolist()
         return self.tokenizer.detokenize(tokenized_seed)
 
@@ -231,6 +175,63 @@ class Manticore:
             path + ".model", map_location=torch.device("cpu")))
         self.model.to(self.device)
 
+    def generate_beamsearch_once(self, tokenized_seed: torch.Tensor, breadth: int, depth: int) -> torch.Tensor:
+        """
+        Beam search helper. Generates one token with parameters as described below.
+        self.model should be in eval() mode, and this should be in a torch.no_grad() environment.
+        """
+        # Keeping track of the top results
+        top = [(torch.tensor(1.0, dtype=torch.float64),
+                torch.tensor([[]], dtype=torch.int64))]
+        for _ in range(depth):
+            nxtop = list()
+            for pr, tks in top:
+                # Generate this branch's tokens
+                cur_seed = torch.cat((tokenized_seed, tks),
+                                     dim=1).to(self.device)
+
+                # Forward pass!
+                y_pred = self.model(cur_seed)
+
+                # Sample probability distribution
+                probs = torch.exp(y_pred[:, -1, :].squeeze(1))
+
+                # Take the top few indices
+                best = torch.topk(probs, breadth)
+
+                # Add the new paths
+                for idx in range(breadth):
+                    nxtop.append((pr * best.values[0, idx], torch.cat(
+                        (tks, best.indices[:, idx:idx+1]), dim=1).to(self.device)))
+
+            # Filter top array
+            top = sorted(nxtop, key=lambda item: item[0].item(), reverse=True)[
+                :breadth]
+
+        # Get the best path
+        print(self.tokenizer.detokenize(top[0][1].squeeze(0).tolist()), end='')
+        sys.stdout.flush()
+        return torch.cat((tokenized_seed, top[0][1]), dim=1).to(self.device)
+
+    def generate_beamsearch(self, seed: str, length: int = 30, breadth: int = 50, depth: int = 10) -> str:
+        """
+        Use Beam Search to generate a string of a given length from a given seed.
+        - breadth: width of beam search to use
+        - depth: how deep to search
+        """
+        tokenized_seed: torch.Tensor = torch.tensor(
+            self.tokenizer.tokenize(seed)).unsqueeze(0).to(self.device)  # (1, seq_len)
+
+        self.model.eval()
+        with torch.no_grad():
+            for _ in range(length):
+                tokenized_seed = self.generate_beamsearch_once(
+                    tokenized_seed, breadth, depth)
+                tokenized_seed = tokenized_seed[:, -100:]
+
+        tokenized_seed = tokenized_seed.squeeze(0).tolist()
+        return self.tokenizer.detokenize(tokenized_seed)
+
     def chat_endlessly(self) -> None:
         """
         Chatbot mode!
@@ -240,119 +241,5 @@ class Manticore:
             prompt = input()
             print()
             print("Manticore says > ", end='')
-            manticore.generate_beamsearch(prompt, 30)
+            self.generate_beamsearch(prompt, 30)
             print()
-            
-
-
-
-########## Nerfed test ##########
-
-
-if __name__ == "__main__":
-    # detect device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("Using device:", device)
-
-    EXPERIMENT = 2
-    LOAD_SAVED = True
-    LOAD_EPOCH = 4
-
-    if EXPERIMENT == 1:
-        corpus = open("./corpus/communistmanifesto.txt", "rb").read()
-        corpus = "".join([chr(i) for i in corpus])
-        train_corpus = corpus[:int(0.8 * len(corpus))]
-        test_corpus = corpus[int(0.8 * len(corpus)):]
-
-        TOKENIZER_SOURCE = "./tokenizers/tokenizer_outputs/mahabharata_size4000_cap10.txt"
-
-        SIZE = 256
-        SEQ_LEN = 120
-        LAYERS = 2
-        BATCH_SIZE = 100
-        EPOCHS = 30 # Uhhhh
-        DEBUG = False
-
-        SAVE_PER_EPOCH = False
-
-        SAVE_NAME = "communist_manticore_smol"
-    elif EXPERIMENT == 2:
-        corpus1 = open("./corpus/mahabharata1.txt", "rb").read()
-        corpus1 = "".join([chr(i) for i in corpus1])
-        corpus2 = open("./corpus/mahabharata2.txt", "rb").read()
-        corpus2 = "".join([chr(i) for i in corpus2])
-        corpus3 = open("./corpus/mahabharata3.txt", "rb").read()
-        corpus3 = "".join([chr(i) for i in corpus3])
-
-        TOKENIZER_SOURCE = "./tokenizers/tokenizer_outputs/mahabharata_size4000_cap10.txt"
-        train_corpus = corpus1 + corpus2
-        test_corpus = corpus3
-
-        SIZE = 256
-        SEQ_LEN = 120
-        LAYERS = 2
-        BATCH_SIZE = 1000
-        EPOCHS = 10
-        DEBUG = False
-        SAVE_PER_EPOCH = True
-
-        SAVE_NAME = "mahabharata_manticore_smol"
-    elif EXPERIMENT == 3:
-        corpus1 = open("./corpus/mahabharata1.txt", "rb").read()
-        corpus1 = "".join([chr(i) for i in corpus1])
-        corpus2 = open("./corpus/mahabharata2.txt", "rb").read()
-        corpus2 = "".join([chr(i) for i in corpus2])
-        corpus3 = open("./corpus/mahabharata3.txt", "rb").read()
-        corpus3 = "".join([chr(i) for i in corpus3])
-
-        TOKENIZER_SOURCE = "./tokenizers/tokenizer_outputs/mahabharata_size4000_cap10.txt"
-
-        train_corpus = corpus1 + corpus2
-        test_corpus = corpus3
-
-        SIZE = 256
-        SEQ_LEN = 120
-        LAYERS = 80
-        BATCH_SIZE = 100
-        EPOCHS = 10
-        DEBUG = False
-        SAVE_PER_EPOCH = True
-
-        SAVE_NAME = "mahabharata_manticore_chungus"
-
-    transformer_params = {"size": SIZE, "size_internal": SIZE *
-                          4, "attention_size": SIZE * 4, "decoder": True}
-    tokenizer = Tokenizer()
-    tokenizer.load(TOKENIZER_SOURCE)
-
-    embedding_in = Embedding(len(tokenizer), SIZE)
-    embedding_out = UnEmbedding(len(tokenizer), SIZE)
-
-    model = Model(embedding_in, embedding_out,
-                  transformer_params, layers=LAYERS)
-
-    print_parameters(model, DEBUG=DEBUG)
-
-    manticore = Manticore(model, tokenizer, device=device)
-    
-
-    if LOAD_SAVED:
-        manticore.load(SAVE_NAME + "_epoch" + str(LOAD_EPOCH))
-        manticore.chat_endlessly()
-        print(manticore.generate(
-            """"The holy one said, 'O thou of great wisdom, I desire to hear in detail, O thou that art conversant with the 
-duties of the science of Profit, and thou art the foremost of all wielders of """,
-            100)
-        )
-        manticore.train(train_corpus, test_corpus,
-                        seq_len=SEQ_LEN, batch_size=BATCH_SIZE, epochs=EPOCHS, debug=DEBUG, save_per_epoch=SAVE_PER_EPOCH,
-                        save_name=SAVE_NAME, start_epoch=LOAD_EPOCH + 1)
-    else:
-        manticore.train(train_corpus, test_corpus,
-                        seq_len=SEQ_LEN, batch_size=BATCH_SIZE, epochs=EPOCHS, debug=DEBUG, save_per_epoch=SAVE_PER_EPOCH,
-                        save_name=SAVE_NAME)
-
-        manticore.save(SAVE_NAME)
-    print(manticore.generate(
-        r"""II.  It is high time that Communists should openly, in the
-face of the whole world, publish their views, """, 1000))
