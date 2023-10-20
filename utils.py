@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 
 from os.path import commonprefix
 
+
 class SubstringDataset(Dataset):
     """
     This class is a PyTorch Dataset that returns substrings of a corpus.

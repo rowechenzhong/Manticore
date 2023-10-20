@@ -3,7 +3,12 @@ from attention import Attention
 
 
 def test_attention_fixed(decoder=False):
-    encoder = Attention(size=3, attention_size=2, decoder=decoder)
+    """
+        This function tests the attention mechanism
+        with one head explicitly, with fixed values.
+    """
+    encoder = Attention(size=3, attention_size=2,
+                        output_size=2, decoder=decoder)
 
     # Sanity checks
     # A = torch.tensor([[[1, 0, 0], [0, 0, 3], [0, 1, 0]]], dtype=torch.float64)
@@ -78,22 +83,34 @@ def test_attention_fixed(decoder=False):
     return encoder.forward(stuff).allclose(expected)
 
 
-def test_attention(size=3, sequence_length=4, internal_size=2, batch_size=5, decoder=False):
-    encoder = Attention(size=3, attention_size=2, decoder=decoder)
+def test_attention(size=3,
+                   sequence_length=4,
+                   attention_size=2,
+                   batch_size=5,
+                   output_size=7,
+                   decoder=False):
+    """
+        This function takes in the attention mechanism
+        with one head explicitly, with randomized
+        values.
+    """
+    encoder = Attention(
+        size=size, attention_size=attention_size,
+        output_size=output_size, decoder=decoder)
 
     # Sanity checks
     # A = torch.tensor([[[1, 0, 0], [0, 0, 3], [0, 1, 0]]], dtype=torch.float64)
     # B = torch.tensor([[[1, 0, 0], [0, 0, 2], [0, 1, 0]]], dtype=torch.float64)
 
     stuff = torch.rand(batch_size, sequence_length, size, dtype=torch.float64)
-    QW = torch.rand(internal_size, size, dtype=torch.float64)
-    QB = torch.rand(internal_size, dtype=torch.float64)
+    QW = torch.rand(attention_size, size, dtype=torch.float64)
+    QB = torch.rand(attention_size, dtype=torch.float64)
 
-    KW = torch.rand(internal_size, size, dtype=torch.float64)
-    KB = torch.rand(internal_size, dtype=torch.float64)
+    KW = torch.rand(attention_size, size, dtype=torch.float64)
+    KB = torch.rand(attention_size, dtype=torch.float64)
 
-    VW = torch.rand(internal_size, size, dtype=torch.float64)
-    VB = torch.rand(internal_size, dtype=torch.float64)
+    VW = torch.rand(output_size, size, dtype=torch.float64)
+    VB = torch.rand(output_size, dtype=torch.float64)
 
     encoder.query.weight = torch.nn.Parameter(QW)
     encoder.query.bias = torch.nn.Parameter(QB)
