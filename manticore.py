@@ -18,15 +18,21 @@ class Manticore:
         self.tokenizer: Tokenizer = tokenizer
         self.device: str = device
 
-    def train(self, train_corpus: str,
+    def train(self,
+              train_corpus: str,
               test_corpus: str,
+
               seq_len: int = 100,
               batch_size: int = 100,
+
+              dirty: float = 0.1,
+
               epochs: int = 10,
+              start_epoch: int = 0,
+
               debug: bool = False,
               save_per_epoch: bool = False,
-              save_name: str = False,
-              start_epoch: int = 0) -> None:
+              save_name: str = False) -> None:
         """
         Train the model on a corpus, which is just a list.
         The model will be trained to predict the next token,
@@ -34,13 +40,19 @@ class Manticore:
 
         :param train_corpus: The corpus to train on.
         :param test_corpus: The corpus to test on.
-        :param size: The length of a training example. (Called seq_len elsewhere)
-        :param batch_size: The batch size.
+
+        :param seq_len: The length of the sequences to train on.
+        :param batch_size: The batch size to use.
+
+        :param dirty: The percentage of input to corrupt.
+
         :param epochs: The number of epochs to train for.
+        :param start_epoch: The epoch to start at.
+
+        :param debug: Whether to print debug information.
+        :param save_per_epoch: Whether to save the model after each epoch.
+        :param save_name: The name to save the model as.
         """
-        # tokenized_train_corpus = torch.tensor(
-        #     self.tokenizer.tokenize(train_corpus))
-        # use typing
         tokenized_train_corpus: torch.Tensor = torch.tensor(
             self.tokenizer.tokenize(train_corpus), dtype=torch.int64)
 
@@ -67,73 +79,95 @@ class Manticore:
         optimizer = torch.optim.Adam(self.model.parameters())
         for epoch in range(start_epoch, epochs):
             print(f"Epoch {epoch}")
-            trainings_loss = 0
+            train_loss = 0
             self.model.train()
-            # tqdm with time estimate
             with tqdm(enumerate(train), total=len(train)) as pbar:
                 for i, (x, y) in pbar:
-                    x = x.to(self.device)
-                    y = y.to(self.device)
-                    optimizer.zero_grad()
-                    # print("In train loop")
-                    # print(x.shape, y.shape)
-                    # print(x.dtype, y.dtype)
-                    y_pred = self.model(x).permute(0, 2, 1)
-
-                    # only incur loss on last half of the sequence
-                    # y_pred = y_pred[:, :, -seq_len//2:]
-                    # y = y[:, -seq_len//2:]
-
-                    l = loss(y_pred, y)
-                    trainings_loss += l.item()
-                    l.backward()
-                    optimizer.step()
-
+                    training_loss += self.single_train_step(
+                        x, y, loss, optimizer, dirty)
                     # write training loss to tqdm
                     pbar.set_postfix(
-                        {"Training loss": trainings_loss / (i + 1)})
+                        {"Train loss": train_loss / (i + 1)})
 
-            print(f"Training loss: {trainings_loss / len(train)}")
+            print(f"Train loss: {train_loss / len(train)}")
 
             if save_per_epoch:
                 self.save(save_name + "_epoch" + str(epoch))
 
             test_loss = 0
             self.model.eval()
-            one_shown = False
             with torch.no_grad():
                 with tqdm(enumerate(test), total=len(test)) as pbar:
                     # for x, y in tqdm(test):
                     for i, (x, y) in pbar:
-                        x = x.to(self.device)  # (batch_size, seq_len)
-                        y = y.to(self.device)  # (batch_size, seq_len)
-                        # (batch_size, vocab_size, seq_len)
-                        y_pred = self.model(x).permute(0, 2, 1)
-                        # only incur loss on last half of the sequence
-                        # y_pred = y_pred[:, :, -seq_len//2:]
-                        # y = y[:, -seq_len//2:]
-                        l = loss(y_pred, y)
-                        test_loss += l.item()
+                        test_loss += self.single_test_step(x, y, loss)
                         pbar.set_postfix({"Test loss": test_loss / (i + 1)})
-
-                        if debug and not one_shown:
-                            print("In test loop")
-                            print("x:", x.shape, x.dtype)
-                            print(self.tokenizer.detokenize(
-                                x[0].tolist()))  # (seq_len)
-                            print("y:", y.shape, y.dtype)
-                            print(self.tokenizer.detokenize(
-                                y[0].tolist()))  # (seq_len)
-                            # report top 5 predictions
-                            print("y_pred:", y_pred.shape, y_pred.dtype)
-                            top_5 = torch.topk(
-                                y_pred[0], 5, dim=0)  # (5, seq_len)
-                            for i in range(5):
-                                print(self.tokenizer.detokenize(
-                                    top_5.indices[i].tolist()))
-                                # print(top_5.values[i])
-                            one_shown = True
+                    if debug:
+                        self.single_test_step(x, y, loss, debug=True)
             print(f"Test loss: {test_loss / len(test)}")
+
+    def single_train_step(self,
+                          x: torch.Tensor,
+                          y: torch.Tensor,
+                          loss: torch.nn.NLLLoss,
+                          optimizer: torch.optim.Adam,
+                          dirty: float) -> None:
+        """
+        Train the model on a single batch.
+        """
+        x = x.to(self.device)
+        y = y.to(self.device)
+        optimizer.zero_grad()
+
+        # corrupt input
+        random_indices = torch.rand(x.shape) < dirty
+        random_tokens = torch.randint(
+            0, len(self.tokenizer), x.shape, dtype=torch.int64)
+
+        x[random_indices] = random_tokens[random_indices]
+
+        # print("In train loop")
+        # print(x.shape, y.shape)
+        # print(x.dtype, y.dtype)
+        y_pred = self.model(x).permute(0, 2, 1)
+
+        # only incur loss on last half of the sequence
+        # y_pred = y_pred[:, :, -seq_len//2:]
+        # y = y[:, -seq_len//2:]
+
+        l = loss(y_pred, y)
+        l.backward()
+        optimizer.step()
+        return l.item()
+
+    def single_test_step(self,
+                         x: torch.Tensor,
+                         y: torch.Tensor,
+                         loss: torch.nn.NLLLoss,
+                         debug: bool = False) -> None:
+        """
+        Test the model on a single batch.
+        """
+        x = x.to(self.device)  # (batch_size, seq_len)
+        y = y.to(self.device)  # (batch_size, seq_len)
+        # (batch_size, vocab_size, seq_len)
+        y_pred = self.model(x).permute(0, 2, 1)
+        # only incur loss on last half of the sequence
+        # y_pred = y_pred[:, :, -seq_len//2:]
+        # y = y[:, -seq_len//2:]
+        if debug:
+            print("In test loop")
+            print("x:", x.shape, x.dtype)
+            print(self.tokenizer.detokenize(x[0].tolist()))  # (seq_len)
+            print("y:", y.shape, y.dtype)
+            print(self.tokenizer.detokenize(y[0].tolist()))  # (seq_len)
+            # report top 5 predictions
+            print("y_pred:", y_pred.shape, y_pred.dtype)
+            top_5 = torch.topk(y_pred[0], 5, dim=0)  # (5, seq_len)
+            for i in range(5):
+                print(self.tokenizer.detokenize(top_5.indices[i].tolist()))
+                # print(top_5.values[i])
+        return loss(y_pred, y).item()
 
     def generate(self, seed: str, length: int = 100) -> str:
         """

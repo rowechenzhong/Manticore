@@ -6,10 +6,6 @@ from embedding import Embedding, UnEmbedding
 from manticore import Manticore
 # Path: manticore.py
 
-
-########## Nerfed test ##########
-
-
 if __name__ == "__main__":
     # detect device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
