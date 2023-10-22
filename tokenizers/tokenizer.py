@@ -86,23 +86,34 @@ class TrieNode:
 
 
 class Tokenizer:
-    def __init__(self):
+    def __init__(self, EOS="<<EOS>>"):
         """
         Alright, let's create a BPE tokenizer.
         """
         self.vocab: TrieNode = TrieNode()
+        # This is the trie. It does not contain the EOS token.
         self.vocab_list: List[str] = []
-        self.max_token_length = MAX_TOKEN
+        # This is the list of tokens. The last one will be the EOS token.
+        self.max_token_length = MAX_TOKEN  # This is the max token length
+        self.EOS = EOS  # This is the end of sentence token
+        self.EOS_idx = -1  # This is the index of the end of sentence token
 
     def __len__(self):
         return len(self.vocab_list)
+
+    def __get_EOS__(self):
+        return self.EOS
 
     def load(self, vocab_file, delimiter=TOKEN_DELIMITER, debug=False):
         self.vocab_list = []
         with open(vocab_file, encoding="utf-8") as f:
             # read f as a list of bytes
             all_text = f.read()
-            all_text = list(filter(lambda x: len(x) > 0, all_text.split(delimiter)))
+            all_text = list(filter(lambda x: len(x) > 0,
+                            all_text.split(delimiter)))
+
+        self.vocab_list = all_text
+
         if debug:
             length_data = [0 for i in range(100)]
             for token in self.vocab_list:
@@ -114,16 +125,17 @@ class Tokenizer:
 
         self.vocab = TrieNode.create_vocab_trie(self.vocab_list)
 
-    def tokenize(self, corpus: str, debug: bool = False) -> List[int]:
+        self.vocab_list.append(self.EOS)
+        self.EOS_idx = len(self.vocab_list) - 1
+
+    def tokenize(self, corpus: str, debug: bool = False, size=None) -> List[int]:
         """
         Tokenize the corpus.
 
-        Args:
-            corpus (str): Input corpus.
-            vocab_trie (TrieNode): Vocabulary trie.
-
-        Returns:
-            List[int]: Tokenized corpus.
+        :param corpus: Input corpus.
+        :param debug: Print debug information.
+        :param size: Size of the corpus to tokenize. If None, tokenize the entire corpus.
+        If an integer, will tokenizer the first size characters of the corpus, then pad with EOS tokens.
         """
         tokenized_corpus = []
         rowechen_ptr = 0
@@ -169,23 +181,28 @@ class Tokenizer:
                 print(i, freq_usage[i])
             print(">=9", freq_usage[9])
 
+        if size is not None:
+            tokenized_corpus = tokenized_corpus[:size]
+            tokenized_corpus += [self.EOS_idx] * \
+                (size - len(tokenized_corpus))
+
         return tokenized_corpus
 
-    def detokenize(self, corpus: List[int], debug: bool = False) -> str:
+    def detokenize(self, corpus: List[int], debug: bool = False, EOS: bool = False) -> str:
         """
         Detokenize the corpus.
 
-        Args:
-            corpus (List[int]): Input corpus.
-
-        Returns:
-            str: Detokenized corpus.
+        :param corpus: Input corpus.
+        :param debug: Print debug information.
+        :param EOS: Whether to terminate the corpus on the first EOS token.
         """
         detokenized_corpus = ""
         for i in range(len(corpus)):
             if debug and i % 1000 == 0:
                 print(f"Detokenizing: {i} of {len(corpus)}", end="\r")
             detokenized_corpus += self.vocab_list[corpus[i]]
+            if self.vocab_list[corpus[i]] == self.EOS and EOS:
+                break
         if debug:
             print()
         return detokenized_corpus

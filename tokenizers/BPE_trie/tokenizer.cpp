@@ -76,12 +76,13 @@ pair<vector<string>, map<string, int>> generate_initial_vocab() {
     */
     vector<string> initial_vocab;
     map<string, int> reverse_initial_vocab;
+    int idx = 0;
     initial_vocab.push_back("<unk>");
-    reverse_initial_vocab["<unk>"] = 0;
+    reverse_initial_vocab["<unk>"] = idx++;
     for (int i = 0; i < 256; ++i) {
         string s(1, (char)i);
         initial_vocab.push_back(s);
-        reverse_initial_vocab[s] = i + 1;
+        reverse_initial_vocab[s] = idx++;
     }
     // set initial_vocab_lengths to all 1's
     return make_pair(initial_vocab, reverse_initial_vocab);

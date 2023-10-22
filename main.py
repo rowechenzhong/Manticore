@@ -4,6 +4,7 @@ import torch
 from utils import print_parameters
 from embedding import Embedding, UnEmbedding
 from manticore import Manticore
+from falcon_stream import FalconStreamer, BatchStreamer
 # Path: manticore.py
 
 if __name__ == "__main__":
@@ -11,15 +12,16 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
-    EXPERIMENT = 2
-    LOAD_SAVED = True
-    LOAD_EPOCH = 4
+    EXPERIMENT = 4
+    LOAD_SAVED = False
+    LOAD_EPOCH = 0
     DEBUG = False
 
     if not LOAD_SAVED:
         LOAD_EPOCH = -1
 
     if EXPERIMENT == 1:
+        raise NotImplementedError
         corpus = open("./corpus/communistmanifesto.txt", "rb").read()
         corpus = "".join([chr(i) for i in corpus])
         train_corpus = corpus[:int(0.8 * len(corpus))]
@@ -42,6 +44,7 @@ if __name__ == "__main__":
         }
 
     elif EXPERIMENT == 2:
+        raise NotImplementedError
         corpus1 = open("./corpus/mahabharata1.txt", "rb").read()
         corpus1 = "".join([chr(i) for i in corpus1])
         corpus2 = open("./corpus/mahabharata2.txt", "rb").read()
@@ -68,6 +71,7 @@ if __name__ == "__main__":
         }
 
     elif EXPERIMENT == 3:
+        raise NotImplementedError
         corpus1 = open("./corpus/mahabharata1.txt", "rb").read()
         corpus1 = "".join([chr(i) for i in corpus1])
         corpus2 = open("./corpus/mahabharata2.txt", "rb").read()
@@ -94,10 +98,45 @@ if __name__ == "__main__":
             "start_epoch": LOAD_EPOCH + 1
         }
 
-    transformer_params = {"size": SIZE, "size_internal": SIZE *
-                          4, "attention_size": SIZE * 4, "decoder": True}
+    elif EXPERIMENT == 4:
+        train_corpus = FalconStreamer(mode="stream", split="train")
+        test_corpus = FalconStreamer(mode="stream", split="test")
+
+        TOKENIZER_SOURCE = "./tokenizers/tokenizer_outputs/peregrine.txt"
+
+        SIZE = 256
+        LAYERS = 80
+        SAVE_NAME = "mahabharata_manticore_chungus"
+
+        train_kwargs = {
+            "seq_len": 256,
+            "batch_size": 1000,
+            "epochs": 10,
+            "debug": DEBUG,
+            "save_per_epoch": True,
+            "save_name": "mahabharata_manticore_chungus",
+            "start_epoch": LOAD_EPOCH + 1
+        }
+
+    transformer_params = {"size": SIZE, "attention_size": SIZE * 4,
+                          "heads": 8, "size_internal": SIZE *
+                          4, "decoder": True}
+
     tokenizer = Tokenizer()
-    tokenizer.load(TOKENIZER_SOURCE)
+
+    # Delimiter is character 31
+    tokenizer.load(TOKENIZER_SOURCE, delimiter=chr(31))
+
+    # Num is the number of batches to train on per epoch. This is tunable.
+    train_streamer = BatchStreamer(
+        train_corpus, tokenizer, batch_size=train_kwargs["batch_size"],
+        context_length=train_kwargs["seq_len"], num=1000
+    )
+
+    test_streamer = BatchStreamer(
+        test_corpus, tokenizer, batch_size=train_kwargs["batch_size"],
+        context_length=train_kwargs["seq_len"], num=1000
+    )
 
     embedding_in = Embedding(len(tokenizer), SIZE)
     embedding_out = UnEmbedding(len(tokenizer), SIZE)
@@ -118,7 +157,7 @@ duties of the science of Profit, and thou art the foremost of all wielders of ""
             100)
         )
 
-    manticore.train(train_corpus, test_corpus, **train_kwargs)
+    manticore.train(train_streamer, test_streamer, **train_kwargs)
 
     manticore.save(SAVE_NAME)
 

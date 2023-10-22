@@ -4,6 +4,7 @@ import torch
 from utils import SubstringDataset
 from tqdm import tqdm
 import sys
+from falcon_stream import FalconStreamer, BatchStreamer
 
 # Path: manticore.py
 
@@ -105,6 +106,75 @@ class Manticore:
                     if debug:
                         self.single_test_step(x, y, loss, debug=True)
             print(f"Test loss: {test_loss / len(test)}")
+
+    def stream_train(self,
+                     train_streamer: BatchStreamer,
+                     test_streamer: BatchStreamer,
+
+                     dirty: float = 0.1,
+
+                     epochs: int = 10,
+                     start_epoch: int = 0,
+
+                     debug: bool = False,
+                     save_per_epoch: bool = False,
+                     save_name: str = False) -> None:
+        """
+        Train the model on a pair of streams.
+        The model will be trained to predict the next token,
+        and the loss will be cross-entropy.
+
+        :param train_streamer: The streamer to train on.
+        :param test_streamer: The streamer to test on.
+
+        :param seq_len: The length of the sequences to train on.
+        :param batch_size: The batch size to use.
+
+        :param dirty: The percentage of input to corrupt.
+
+        :param epochs: The number of epochs to train for.
+        :param start_epoch: The epoch to start at.
+
+        :param debug: Whether to print debug information.
+        :param save_per_epoch: Whether to save the model after each epoch.
+        :param save_name: The name to save the model as.
+        """
+
+        print("Size of training set: ", len(train_streamer))
+        print("Size of test set: ", len(test_streamer))
+
+        # note that tokenizer already outputs log-probabilities,
+        # so we don't need to apply softmax. Just use a NLLL loss.
+        loss = torch.nn.NLLLoss()
+        optimizer = torch.optim.Adam(self.model.parameters())
+        for epoch in range(start_epoch, epochs):
+            print(f"Epoch {epoch}")
+            train_loss = 0
+            self.model.train()
+            with tqdm(train_streamer, total=len(train_streamer)) as pbar:
+                for i, (x, y) in enumerate(pbar):
+                    training_loss += self.single_train_step(
+                        x, y, loss, optimizer, dirty)
+                    # write training loss to tqdm
+                    pbar.set_postfix(
+                        {"Train loss": train_loss / (i + 1)})
+
+            print(f"Train loss: {train_loss / len(train_streamer)}")
+
+            if save_per_epoch:
+                self.save(save_name + "_epoch" + str(epoch))
+
+            test_loss = 0
+            self.model.eval()
+            with torch.no_grad():
+                with tqdm(test_streamer, total=len(test_streamer)) as pbar:
+                    # for x, y in tqdm(test):
+                    for i, (x, y) in enumerate(pbar):
+                        test_loss += self.single_test_step(x, y, loss)
+                        pbar.set_postfix({"Test loss": test_loss / (i + 1)})
+                    if debug:
+                        self.single_test_step(x, y, loss, debug=True)
+            print(f"Test loss: {test_loss / len(test_streamer)}")
 
     def single_train_step(self,
                           x: torch.Tensor,

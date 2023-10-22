@@ -4,8 +4,9 @@ Read from Falcon RefinedWeb dataset, and dump it into chunks into the desired pa
 
 import argparse
 from datasets import load_dataset
-from tokenizers import tokenizer
+from tokenizers.tokenizer import Tokenizer
 from tqdm import tqdm
+import torch
 
 DATASET_CHUNK_SIZE = 1024
 CORPUS_DIR = "corpus/falcon/"
@@ -114,22 +115,51 @@ class FalconStreamer:
 
 
 class BatchStreamer:
-    def __init__(self, stream: FalconStreamer, tokenizer: tokenizer, batch_size: int = 64):
+    def __init__(self,
+                 stream: FalconStreamer,
+                 tokenizer: Tokenizer,
+                 batch_size: int = 64,
+                 context_length: int = 512,
+                 num: int = 1):
         """
         Initialize the boi
         """
         self.stream = stream
         self.tokenizer = tokenizer
         self.batch_size = batch_size
+        self.context_length = context_length
+
+        self.num = num
 
     def __iter__(self):
         return self
+
+    def __len__(self):
+        return self.num
 
     def __next__(self):
         """
         Grab the next batch of batch_size rows, pad and tokenize them all
         """
-        # for rowechen, because i am lost
+        x = torch.zeros((self.batch_size, self.context_length),
+                        dtype=torch.int64)
+
+        y = torch.zeros((self.batch_size, self.context_length),
+                        dtype=torch.int64)
+
+        for i in range(self.batch_size):
+            try:
+                what = torch.Tensor(
+                    self.tokenizer.tokenize(
+                        next(self.stream),
+                        False,
+                        self.context_length + 1
+                    )
+                )
+                x[i, :] = what[:-1]
+                y[i, :] = what[1:]
+            except StopIteration:
+                raise StopIteration
 
 
 if __name__ == '__main__':
