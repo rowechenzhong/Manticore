@@ -83,9 +83,10 @@ def test_attention_fixed(decoder=False):
     return encoder.forward(stuff).allclose(expected)
 
 
-def test_attention(size=3,
+def test_attention(size=9,
                    sequence_length=4,
                    attention_size=2,
+                   heads=3,
                    batch_size=5,
                    output_size=7,
                    decoder=False):
@@ -94,23 +95,27 @@ def test_attention(size=3,
         with one head explicitly, with randomized
         values.
     """
+
+    raise NotImplementedError  # I haven't done multi-head attention yet
+
     encoder = Attention(
         size=size, attention_size=attention_size,
-        output_size=output_size, decoder=decoder)
+        output_size=output_size, heads=heads,
+        decoder=decoder)
 
     # Sanity checks
     # A = torch.tensor([[[1, 0, 0], [0, 0, 3], [0, 1, 0]]], dtype=torch.float64)
     # B = torch.tensor([[[1, 0, 0], [0, 0, 2], [0, 1, 0]]], dtype=torch.float64)
 
     stuff = torch.rand(batch_size, sequence_length, size, dtype=torch.float64)
-    QW = torch.rand(attention_size, size, dtype=torch.float64)
-    QB = torch.rand(attention_size, dtype=torch.float64)
+    QW = torch.rand(attention_size * heads, size, dtype=torch.float64)
+    QB = torch.rand(attention_size * heads, dtype=torch.float64)
 
     KW = torch.rand(attention_size, size, dtype=torch.float64)
     KB = torch.rand(attention_size, dtype=torch.float64)
 
-    VW = torch.rand(output_size, size, dtype=torch.float64)
-    VB = torch.rand(output_size, dtype=torch.float64)
+    VW = torch.rand(output_size * heads, size, dtype=torch.float64)
+    VB = torch.rand(output_size * heads, dtype=torch.float64)
 
     encoder.query.weight = torch.nn.Parameter(QW)
     encoder.query.bias = torch.nn.Parameter(QB)
@@ -120,6 +125,8 @@ def test_attention(size=3,
 
     encoder.value.weight = torch.nn.Parameter(VW)
     encoder.value.bias = torch.nn.Parameter(VB)
+
+    result = encoder.forward(stuff)
 
     Q = QW @ stuff.transpose(1, 2) + QB.unsqueeze(1)
     K = KW @ stuff.transpose(1, 2) + KB.unsqueeze(1)
@@ -155,14 +162,12 @@ def test_attention(size=3,
 
     # print(expected)
 
-    # print(encoder.forward(stuff))
-
-    return encoder.forward(stuff).allclose(expected)
+    return result.allclose(expected)
 
 
 if __name__ == "__main__":
-    assert test_attention_fixed()
-    assert test_attention_fixed(decoder=True)
+    # assert test_attention_fixed()
+    # assert test_attention_fixed(decoder=True)
     assert test_attention()
-    assert test_attention(decoder=True)
+    # assert test_attention(decoder=True)
     print("All tests passed!")

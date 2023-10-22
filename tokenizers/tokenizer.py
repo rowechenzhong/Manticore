@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, ByteString
 
 MAX_TOKEN = 100
 TOKEN_DELIMITER = chr(31)
@@ -130,11 +130,11 @@ class Tokenizer:
         self.vocab_list.append(self.EOS)
         self.EOS_idx = len(self.vocab_list) - 1
 
-    def tokenize(self, corpus: str, debug: bool = False, size=None) -> List[int]:
+    def tokenize(self, corpus: bytes, debug: bool = False, size=None) -> List[int]:
         """
         Tokenize the corpus.
 
-        :param corpus: Input corpus.
+        :param corpus: Input corpus as a string of bytes.
         :param debug: Print debug information.
         :param size: Size of the corpus to tokenize. If None, tokenize the entire corpus.
         If an integer, will tokenizer the first size characters of the corpus, then pad with EOS tokens.
@@ -149,13 +149,14 @@ class Tokenizer:
             if rowechen_ptr >= len(corpus):
                 chr = -1
             else:
-                chr = ord(corpus[rowechen_ptr])
+                # Indexing into a bytes object returns an int!
+                chr = corpus[rowechen_ptr]  # ord(corpus[rowechen_ptr])
             if chr not in cur.children:
                 tokenized_corpus.append(isaac_notes)
                 rowechen_ptr = isaac_ptr + 1
                 if rowechen_ptr >= len(corpus):
                     break
-                chr = ord(corpus[rowechen_ptr])
+                chr = corpus[rowechen_ptr]  # ord(corpus[rowechen_ptr])
                 cur = self.vocab.children[chr][1]
             else:
                 cur = cur.children[chr][1]
@@ -165,13 +166,12 @@ class Tokenizer:
                 isaac_notes = cur.mark
 
             rowechen_ptr += 1
-            if rowechen_ptr & 0xfff == 0:
+            if rowechen_ptr & 0xfff == 0 and debug:
                 print(
                     f"Tokenizing ........ {rowechen_ptr} of {len(corpus)}", end="\r")
-
-        print("Finished tokenizing", end=" " * 29 + "\n")
-
         if debug:
+            print("Finished tokenizing", end=" " * 29 + "\n")
+
             # print number of tokens that never got used
             usage = [0 for i in range(len(self.vocab_list))]
             for i in tokenized_corpus:

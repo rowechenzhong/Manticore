@@ -150,17 +150,20 @@ class BatchStreamer:
                         dtype=torch.int64)
         for i in range(self.batch_size):
             try:
+                # TODO: What is this hot garbage?!?!?!? FIX IT!!!
+                raw = bytes(next(self.stream), encoding='utf-8')
+                # to_chars = "".join([chr(i) for i in raw])
                 what = torch.Tensor(
                     self.tokenizer.tokenize(
-                        next(self.stream),
-                        False,
-                        self.context_length + 1
+                        raw, size=self.context_length + 1
                     )
                 )
                 x[i, :] = what[:-1]
                 y[i, :] = what[1:]
             except StopIteration:
                 raise StopIteration
+
+        return x, y
 
 
 if __name__ == '__main__':
