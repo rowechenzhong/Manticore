@@ -12,7 +12,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
-    EXPERIMENT = 4
+    EXPERIMENT = 5
     LOAD_SAVED = False
     LOAD_EPOCH = 0
     DEBUG = False
@@ -102,19 +102,50 @@ if __name__ == "__main__":
         train_corpus = FalconStreamer(mode="stream", split="train")
         test_corpus = FalconStreamer(mode="stream", split="test")
 
+        SEQ_LEN = 256
+        BATCH_SIZE = 1000
+        EPOCH_SIZE = 100
+
         TOKENIZER_SOURCE = "./tokenizers/tokenizer_outputs/peregrine.txt"
 
         SIZE = 256
         LAYERS = 80
-        SAVE_NAME = "mahabharata_manticore_chungus"
+        SAVE_NAME = "falcon_manticore_chungus"
 
         train_kwargs = {
-            "seq_len": 256,
-            "batch_size": 1000,
             "epochs": 10,
             "debug": DEBUG,
             "save_per_epoch": True,
-            "save_name": "mahabharata_manticore_chungus",
+            "save_name": SAVE_NAME,
+            "start_epoch": LOAD_EPOCH + 1
+        }
+
+    elif EXPERIMENT == 5:
+        train_corpus = FalconStreamer(mode="stream", split="train")
+        test_corpus = FalconStreamer(mode="stream", split="test")
+        SEQ_LEN = 128
+        BATCH_SIZE = 10
+        EPOCH_SIZE = 10
+
+        TOKENIZER_SOURCE = "./tokenizers/tokenizer_outputs/peregrine.txt"
+
+        SIZE = 32
+        LAYERS = 2
+        SAVE_NAME = "falcon_manticore_smol"
+
+        # :param dirty: The percentage of input to corrupt.
+
+        # :param epochs: The number of epochs to train for.
+        # :param start_epoch: The epoch to start at.
+
+        # :param debug: Whether to print debug information.
+        # :param save_per_epoch: Whether to save the model after each epoch.
+        # :param save_name: The name to save the model as.
+        train_kwargs = {
+            "epochs": 10,
+            "debug": DEBUG,
+            "save_per_epoch": True,
+            "save_name": SAVE_NAME,
             "start_epoch": LOAD_EPOCH + 1
         }
 
@@ -129,13 +160,13 @@ if __name__ == "__main__":
 
     # Num is the number of batches to train on per epoch. This is tunable.
     train_streamer = BatchStreamer(
-        train_corpus, tokenizer, batch_size=train_kwargs["batch_size"],
-        context_length=train_kwargs["seq_len"], num=1000
+        train_corpus, tokenizer, batch_size=BATCH_SIZE,
+        context_length=SEQ_LEN, num=10
     )
 
     test_streamer = BatchStreamer(
-        test_corpus, tokenizer, batch_size=train_kwargs["batch_size"],
-        context_length=train_kwargs["seq_len"], num=1000
+        test_corpus, tokenizer, batch_size=BATCH_SIZE,
+        context_length=SEQ_LEN, num=10
     )
 
     embedding_in = Embedding(len(tokenizer), SIZE)
@@ -157,7 +188,7 @@ duties of the science of Profit, and thou art the foremost of all wielders of ""
             100)
         )
 
-    manticore.train(train_streamer, test_streamer, **train_kwargs)
+    manticore.stream_train(train_streamer, test_streamer, **train_kwargs)
 
     manticore.save(SAVE_NAME)
 

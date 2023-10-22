@@ -40,13 +40,15 @@ class FalconStreamer:
         print("Shuffling...")
         self.dataset = self.dataset.shuffle(seed=SHUFFLE_SEED)
 
+        if self.mode == 'stream':
+            self.cur_streaming_row = 0
+            self.stream = iter(self.dataset)
+
     def __iter__(self):
         """
         Prepare for iteration
         """
         assert self.mode == 'stream', "Must be 'stream' mode to stream content"
-        self.cur_streaming_row = 0
-        self.stream = iter(self.dataset)
         return self
 
     def __next__(self):
@@ -146,7 +148,6 @@ class BatchStreamer:
 
         y = torch.zeros((self.batch_size, self.context_length),
                         dtype=torch.int64)
-
         for i in range(self.batch_size):
             try:
                 what = torch.Tensor(

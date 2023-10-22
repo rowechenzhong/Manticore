@@ -106,9 +106,11 @@ class Tokenizer:
 
     def load(self, vocab_file, delimiter=TOKEN_DELIMITER, debug=False):
         self.vocab_list = []
-        with open(vocab_file, encoding="utf-8") as f:
+        with open(vocab_file, "rb") as f:
             # read f as a list of bytes
             all_text = f.read()
+            # convert bytes to string
+            all_text = "".join([chr(i) for i in all_text])
             all_text = list(filter(lambda x: len(x) > 0,
                             all_text.split(delimiter)))
 
