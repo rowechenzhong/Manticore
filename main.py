@@ -123,7 +123,7 @@ if __name__ == "__main__":
     elif EXPERIMENT == 5:
         train_corpus = FalconStreamer(mode="stream", split="train")
         test_corpus = FalconStreamer(mode="stream", split="test")
-        SEQ_LEN = 128
+        SEQ_LEN = 1024  # Test the window size.
         BATCH_SIZE = 10
         EPOCH_SIZE = 10
 

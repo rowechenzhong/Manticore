@@ -152,15 +152,17 @@ class Manticore:
             train_loss = 0
             self.model.train()
             with tqdm(train_streamer, total=len(train_streamer)) as pbar:
-                pbar.set_postfix({"Grabbing data... Train loss": 0})
+                pbar.set_postfix({"Train loss": 0, "Grabbing data...": ""})
                 for i, (x, y) in enumerate(pbar):
+                    if i == len(train_streamer):
+                        break
                     pbar.set_postfix(
                         {"Train loss": train_loss / i if i > 0 else 0})
                     train_loss += self.single_train_step(
                         x, y, loss, optimizer, dirty)
                     # write training loss to tqdm
                     pbar.set_postfix(
-                        {"Grabbing data... Train loss": train_loss / (i + 1)})
+                        {"Train loss": train_loss / (i + 1), "Grabbing data...": ""})
 
             print(f"Train loss: {train_loss / len(train_streamer)}")
 
@@ -173,6 +175,8 @@ class Manticore:
                 with tqdm(test_streamer, total=len(test_streamer)) as pbar:
                     # for x, y in tqdm(test):
                     for i, (x, y) in enumerate(pbar):
+                        if i == len(test_streamer):
+                            break
                         test_loss += self.single_test_step(x, y, loss)
                         pbar.set_postfix({"Test loss": test_loss / (i + 1)})
                     if debug:
